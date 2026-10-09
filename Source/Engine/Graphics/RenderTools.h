@@ -175,7 +175,9 @@ public:
     static float GetDepthBounds(const RenderView& view, float viewDistance, bool near);
     // Skip background/sky pixels from shading
 #if REVERSE_Z
-    static constexpr float DepthBoundMaxBackground = 0.0000001f;
+    // Construct: empty pixels clear to exactly 0 with reversed-Z, so anything drawn, out to the far plane, is above this.
+    // At 1e-7, with a 50 cm near plane everything past about 3,300 km went unlit
+    static constexpr float DepthBoundMaxBackground = 1e-30f;
 #else
     static constexpr float DepthBoundMaxBackground = 1.0f - 0.0000001f;
 #endif
