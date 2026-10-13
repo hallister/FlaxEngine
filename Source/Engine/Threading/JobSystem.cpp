@@ -293,6 +293,20 @@ FORCE_INLINE void WaitForContextFree(JobContext& context)
     {
         PROFILE_CPU_NAMED("JOB SYSTEM CONTEXT BUSY");
         ZoneColor(TracyWaitZoneColor);
+        JobsSignal.NotifyOne(); // The old job may sit unpicked, dispatched while job starting was off
+        Platform::Sleep(0);
+    }
+}
+
+// Makes the job visible to the threads once it and every job before it are built: the threads take jobs up to
+// JobEndLabel, so moving it past a label still being built (another thread's, waiting for its context) would hand them
+// the context's old contents.
+FORCE_INLINE void PublishJob(int64 label)
+{
+    while (Platform::InterlockedCompareExchange(&JobEndLabel, label, label - 1) != label - 1)
+    {
+        PROFILE_CPU_NAMED("JOB SYSTEM PUBLISH WAIT");
+        ZoneColor(TracyWaitZoneColor);
         Platform::Sleep(0);
     }
 }
@@ -330,7 +344,7 @@ int64 JobSystem::Dispatch(const Function<void(int32)>& job, int32 jobCount)
     context.Dependants.Clear();
 
     // Move the job queue forward
-    Platform::InterlockedIncrement(&JobEndLabel);
+    PublishJob(label);
 
     if (JobStartingOnDispatch)
     {
@@ -394,7 +408,7 @@ int64 JobSystem::Dispatch(const Function<void(int32)>& job, Span<int64> dependen
     }
 
     // Move the job queue forward
-    Platform::InterlockedIncrement(&JobEndLabel);
+    PublishJob(label);
 
     if (context.DependenciesLeft == 0 && JobStartingOnDispatch)
     {
