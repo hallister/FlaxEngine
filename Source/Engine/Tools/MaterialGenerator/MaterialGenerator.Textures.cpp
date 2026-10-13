@@ -590,6 +590,10 @@ void MaterialGenerator::ProcessGroupTextures(Box* box, Node* node, Value& value)
             {
                 if (useLevel && useOffset)
                     format = TEXT("{0}.SampleLevel({1}, {2}, {3} + MaterialTextureMipBias, {4})");
+                else if (useLevel)
+                    format = TEXT("{0}.SampleLevel({1}, {2}, {3} + MaterialTextureMipBias)");
+                else if (!canUseSample)
+                    format = TEXT("{0}.SampleLevel({1}, {2}, MaterialTextureMipBias)");
                 else if (useOffset)
                     format = TEXT("{0}.SampleBias({1}, {2}, MaterialTextureMipBias, {4})");
                 else
@@ -750,7 +754,7 @@ void MaterialGenerator::ProcessGroupTextures(Box* box, Node* node, Value& value)
         {
             // Get world position and normal
             float3 tiling = %SCALE% * 0.001f;
-            float3 position = ((%POSITION%) + GetLargeWorldsTileOffset(1.0f / length(tiling))) * tiling;
+            float3 position = ((%POSITION%) + GetLargeWorldsTileOffset(1.0f / tiling)) * tiling;
             float3 normal = normalize(%NORMAL%);
 
             // Compute triplanar blend weights using power distribution
@@ -840,7 +844,7 @@ void MaterialGenerator::ProcessGroupTextures(Box* box, Node* node, Value& value)
         {
             // Get world position and normal
             float3 tiling = %SCALE% * 0.001f;
-            float3 position = ((%POSITION%) + GetLargeWorldsTileOffset(1.0f / length(tiling))) * tiling;
+            float3 position = ((%POSITION%) + GetLargeWorldsTileOffset(1.0f / tiling)) * tiling;
             float3 normal = normalize(%NORMAL%);
 
             // Compute triplanar blend weights using power distribution
