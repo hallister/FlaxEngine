@@ -293,7 +293,7 @@ FORCE_INLINE void WaitForContextFree(JobContext& context)
     {
         PROFILE_CPU_NAMED("JOB SYSTEM CONTEXT BUSY");
         ZoneColor(TracyWaitZoneColor);
-        JobsSignal.NotifyOne(); // The old job may sit unpicked, dispatched while job starting was off
+        JobsSignal.NotifyAll(); // The old job may sit unpicked, dispatched while job starting was off
         Platform::Sleep(0);
     }
 }
@@ -325,6 +325,7 @@ int64 JobSystem::Dispatch(const Function<void(int32)>& job, int32 jobCount)
         PROFILE_CPU_NAMED("JOB SYSTEM OVERFLOW");
         ZoneColor(TracyWaitZoneColor);
         Platform::InterlockedDecrement(&JobContextsCount);
+        JobsSignal.NotifyAll(); // Jobs dispatched while job starting is off sit unpicked until the threads are woken
         Platform::Sleep(1);
     }
 
@@ -375,6 +376,7 @@ int64 JobSystem::Dispatch(const Function<void(int32)>& job, Span<int64> dependen
         PROFILE_CPU_NAMED("JOB SYSTEM OVERFLOW");
         ZoneColor(TracyWaitZoneColor);
         Platform::InterlockedDecrement(&JobContextsCount);
+        JobsSignal.NotifyAll(); // Jobs dispatched while job starting is off sit unpicked until the threads are woken
         Platform::Sleep(1);
     }
 
