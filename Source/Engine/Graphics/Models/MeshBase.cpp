@@ -228,11 +228,7 @@ bool MeshAccessor::LoadMesh(const MeshBase* mesh, bool forceGpu, Span<MeshBuffer
         if (meshLayouts[i] && meshLayouts[i]->GetElements().Count() == 1)
             format = meshLayouts[i]->GetElements()[0].Format;
         else if (buffers[i] == MeshBufferType::Index)
-<<<<<<< HEAD
-            format = mesh->Use16BitIndexBuffer() ? PixelFormat::R16_UInt : PixelFormat::R32_UInt; // Downloaded from the GPU without a layout
-=======
             format = mesh->Use16BitIndexBuffer() ? PixelFormat::R16_UInt : PixelFormat::R32_UInt;
->>>>>>> 57a39d6380f1c5d6e1ede07a4245d455ffdea098
         _formats[buffer] = format;
     }
     return false;
