@@ -99,7 +99,7 @@ bool JobSystemService::Init()
     PROFILE_MEM(EngineThreading);
 
     // Initialize job context storage (fixed-size ring buffer for active jobs tracking)
-    JobContextsSize = 256;
+    JobContextsSize = 1024; // Each async drawn actor dispatches a job in draw collection
     JobContextsMask = JobContextsSize - 1;
     JobContexts = (JobContext*)Platform::Allocate(JobContextsSize * sizeof(JobContext), alignof(JobContext));
     Memory::ConstructItems(JobContexts, (int32)JobContextsSize);
@@ -231,8 +231,13 @@ int32 JobSystemThread::Run()
                     for (int64 dependant : jobContext->Dependants)
                     {
                         JobContext& dependantContext = JobContexts[GET_CONTEXT_INDEX(dependant)];
-                        if (dependantContext.JobLabel == dependant)
-                            Platform::InterlockedDecrement(&dependantContext.DependenciesLeft);
+                        if (dependantContext.JobLabel == dependant && Platform::InterlockedDecrement(&dependantContext.DependenciesLeft) == 0 && JobStartingOnDispatch)
+                        {
+                            // Wake workers for the job that just became runnable
+                            int32 wakes = Math::Min(dependantContext.JobsCount, ThreadsCount);
+                            while (wakes-- > 0)
+                                JobsSignal.NotifyOne();
+                        }
                     }
                     JobsLocker.Unlock();
                 }
@@ -350,10 +355,10 @@ int64 JobSystem::Dispatch(const Function<void(int32)>& job, int32 jobCount)
 
     if (JobStartingOnDispatch)
     {
-        if (jobCount == 1)
+        // Wake only as many workers as there are jobs, to prevent thundering herd
+        int32 wakes = Math::Min(jobCount, ThreadsCount);
+        while (wakes-- > 0)
             JobsSignal.NotifyOne();
-        else
-            JobsSignal.NotifyAll();
     }
 
     return label;
@@ -415,10 +420,10 @@ int64 JobSystem::Dispatch(const Function<void(int32)>& job, Span<int64> dependen
 
     if (context.DependenciesLeft == 0 && JobStartingOnDispatch)
     {
-        if (jobCount == 1)
+        // Wake only as many workers as there are jobs, to prevent thundering herd
+        int32 wakes = Math::Min(jobCount, ThreadsCount);
+        while (wakes-- > 0)
             JobsSignal.NotifyOne();
-        else
-            JobsSignal.NotifyAll();
     }
 
     return label;
