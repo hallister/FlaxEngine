@@ -240,8 +240,8 @@ int32 JobSystemThread::Run()
                 jobContext->Job.Unbind();
                 jobContext->Dependants.Clear();
                 Platform::AtomicStore(&jobContext->DependantsCount, 0);
-                Platform::AtomicStore(&jobContext->DependenciesLeft, -999); // Mark to indicate deleted context
                 Platform::AtomicStore(&jobContext->JobLabel, -1);
+                Platform::AtomicStore(&jobContext->DependenciesLeft, -999); // Mark to indicate deleted context (last, Dispatch waits on it before reusing the context)
                 Platform::InterlockedDecrement(&JobContextsCount);
 
                 // Wakeup any thread waiting for the jobs to complete
@@ -282,6 +282,23 @@ void JobSystem::Execute(const Function<void(int32)>& job, int32 jobCount)
     }
 }
 
+#if JOB_SYSTEM_ENABLED
+
+// Waits until the context (picked by label modulo the ring size) is done with the job it last held. The in-flight count
+// alone doesn't guarantee that: a long-running job can keep its context while 255 later ones come and go, and reusing it
+// then would make Wait() on the old label return while its jobs still run (on the waiting caller's freed stack).
+FORCE_INLINE void WaitForContextFree(JobContext& context)
+{
+    while (Platform::AtomicRead(&context.JobLabel) != 0 && Platform::AtomicRead(&context.DependenciesLeft) != -999)
+    {
+        PROFILE_CPU_NAMED("JOB SYSTEM CONTEXT BUSY");
+        ZoneColor(TracyWaitZoneColor);
+        Platform::Sleep(0);
+    }
+}
+
+#endif
+
 int64 JobSystem::Dispatch(const Function<void(int32)>& job, int32 jobCount)
 {
     if (jobCount <= 0)
@@ -302,6 +319,7 @@ int64 JobSystem::Dispatch(const Function<void(int32)>& job, int32 jobCount)
 
     // Build job
     JobContext& context = JobContexts[GET_CONTEXT_INDEX(label)];
+    WaitForContextFree(context);
     context.Job = job;
     context.JobIndex = 0;
     context.JobsLeft = jobCount;
@@ -351,6 +369,7 @@ int64 JobSystem::Dispatch(const Function<void(int32)>& job, Span<int64> dependen
 
     // Build job
     JobContext& context = JobContexts[GET_CONTEXT_INDEX(label)];
+    WaitForContextFree(context);
     context.Job = job;
     context.JobIndex = 0;
     context.JobsLeft = jobCount;
