@@ -288,6 +288,12 @@ void PlatformBase::FreePages(void* ptr)
     Platform::Free(ptr);
 }
 
+void PlatformBase::SetThreadIdealProcessor(int32 processor)
+{
+    // Fallback to pinning the thread to it
+    Platform::SetThreadAffinityMask(1ull << processor);
+}
+
 PlatformType PlatformBase::GetPlatformType()
 {
     return PLATFORM_TYPE;
