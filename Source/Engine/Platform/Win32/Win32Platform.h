@@ -98,6 +98,7 @@ public:
     }
     static void SetThreadPriority(ThreadPriority priority);
     static void SetThreadAffinityMask(uint64 affinityMask);
+    static void SetThreadIdealProcessor(int32 processor);
     static void Sleep(int32 milliseconds);
     static void Yield();
     static double GetTimeSeconds();
