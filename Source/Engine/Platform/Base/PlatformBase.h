@@ -442,6 +442,12 @@ public:
     static void SetThreadAffinityMask(uint64 affinityMask) = delete;
 
     /// <summary>
+    /// Sets the logical processor the current thread prefers to run on. Unlike <see cref="SetThreadAffinityMask"/>, the scheduler can still run the thread elsewhere when that processor is busy. Platforms without such a hint pin the thread to it.
+    /// </summary>
+    /// <param name="processor">The zero-based logical processor index.</param>
+    static void SetThreadIdealProcessor(int32 processor);
+
+    /// <summary>
     /// Suspends the execution of the current thread until the time-out interval elapses.
     /// </summary>
     /// <param name="milliseconds">The time interval for which execution is to be suspended, in milliseconds.</param>

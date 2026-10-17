@@ -148,8 +148,9 @@ void JobSystemService::Dispose()
 
 int32 JobSystemThread::Run()
 {
-    // Pin thread to the physical core
-    Platform::SetThreadAffinityMask(1ull << Index);
+    // Prefer its own core, but let the scheduler move it when that core is busy: pinned, a worker waited on a busy core
+    // (another process's pinned threads, a driver) for over 100 ms while the frame waited on its job
+    Platform::SetThreadIdealProcessor((int32)Index);
 
     bool attachCSharpThread = true;
     MONO_THREAD_INFO_TYPE* monoThreadInfo = nullptr;

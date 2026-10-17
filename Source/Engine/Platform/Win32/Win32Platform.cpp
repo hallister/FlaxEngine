@@ -376,6 +376,11 @@ void Win32Platform::SetThreadAffinityMask(uint64 affinityMask)
     ::SetThreadAffinityMask(::GetCurrentThread(), (DWORD_PTR)affinityMask);
 }
 
+void Win32Platform::SetThreadIdealProcessor(int32 processor)
+{
+    ::SetThreadIdealProcessor(::GetCurrentThread(), (DWORD)processor);
+}
+
 void Win32Platform::Sleep(int32 milliseconds)
 {
     static thread_local HANDLE timer = NULL;
