@@ -3,6 +3,7 @@
 #if COMPILE_WITH_MATERIAL_GRAPH
 
 #include "MaterialGenerator.h"
+#include "Engine/Visject/ShaderGraphUtilities.h"
 #include "Engine/Core/Math/Vector4.h"
 #include "Engine/Core/Math/Matrix.h"
 #include "Engine/Content/Assets/MaterialInstance.h"
@@ -280,9 +281,12 @@ void MaterialGenerator::prepareLayer(MaterialLayer* layer, bool allowVisiblePara
             }
             if (StringUtils::Compare(param->Type.TypeName, "FlaxEngine.GPUTexture") == 0)
             {
-                // The editor has no texture array parameter type, so a GPU texture parameter named "...Array" is
-                // declared as a Texture2DArray (bound with GPUTexture::ViewArray, sampled with float3(uv, slice))
-                mp.Type = param->Name.EndsWith(TEXT("Array"), StringSearchCase::IgnoreCase) ? MaterialParameterType::GPUTextureArray : MaterialParameterType::GPUTexture;
+                mp.Type = ShaderGraphUtilities::GetGPUTextureType(param->Meta);
+
+                // Transitional fallback until Construct's generated materials set the GPU texture type: a 2D GPU texture
+                // parameter named "...Array" is still declared as a Texture2DArray
+                if (mp.Type == MaterialParameterType::GPUTexture && param->Name.EndsWith(TEXT("Array"), StringSearchCase::IgnoreCase))
+                    mp.Type = MaterialParameterType::GPUTextureArray;
             }
             else if (StringUtils::Compare(param->Type.TypeName, "FlaxEngine.GPUBuffer") == 0)
                 mp.Type = MaterialParameterType::GPUBuffer;
