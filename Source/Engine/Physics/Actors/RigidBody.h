@@ -38,6 +38,8 @@ protected:
     uint32 _updateMassWhenScaleChanges : 1;
     uint32 _overrideMass : 1;
     uint32 _isUpdatingTransform : 1;
+    uint32 _shapeChangesDirty : 1;
+    int32 _shapeChangesDepth;
 
 public:
     /// <summary>
@@ -314,6 +316,25 @@ public:
     API_FUNCTION() void UpdateMass();
 
     /// <summary>
+    /// Holds back the mass, inertia and bounds updates that attaching, detaching, enabling or disabling colliders cause, until the matching <see cref="EndShapeChanges"/>. Each such change otherwise recomputes the mass over every shape on the body, so changing many colliders one by one costs the square of their count.
+    /// </summary>
+    /// <remarks>Calls nest. The outermost <see cref="EndShapeChanges"/> updates the body once, if any collider changed. The mass, center of mass and bounds read in between are those from before the changes.</remarks>
+    API_FUNCTION() void BeginShapeChanges();
+
+    /// <summary>
+    /// Ends a <see cref="BeginShapeChanges"/> scope. The outermost one updates the body's bounds and mass once, if any collider changed in the scope.
+    /// </summary>
+    API_FUNCTION() void EndShapeChanges();
+
+    /// <summary>
+    /// Gets whether a <see cref="BeginShapeChanges"/> scope is open.
+    /// </summary>
+    API_PROPERTY() FORCE_INLINE bool GetIsChangingShapes() const
+    {
+        return _shapeChangesDepth > 0;
+    }
+
+    /// <summary>
     /// Applies a force (or impulse) defined in the world space to the rigidbody at its center of mass.
     /// </summary>
     /// <remarks>
@@ -460,6 +481,9 @@ public:
 
     // Called when collider gets detached from this rigidbody or activated/deactivated. Used to update rigidbody mass.
     virtual void OnColliderChanged(Collider* c);
+
+    // Called when collider gets attached to this rigidbody during play. Updates the bounds and mass, or marks them for the end of a BeginShapeChanges scope.
+    void OnColliderAttached(Collider* c);
 
     /// <summary>
     /// Updates the bounding box.
