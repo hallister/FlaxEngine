@@ -279,7 +279,11 @@ void MaterialGenerator::prepareLayer(MaterialLayer* layer, bool allowVisiblePara
                 break;
             }
             if (StringUtils::Compare(param->Type.TypeName, "FlaxEngine.GPUTexture") == 0)
-                mp.Type = MaterialParameterType::GPUTexture;
+            {
+                // The editor has no texture array parameter type, so a GPU texture parameter named "...Array" is
+                // declared as a Texture2DArray (bound with GPUTexture::ViewArray, sampled with float3(uv, slice))
+                mp.Type = param->Name.EndsWith(TEXT("Array"), StringSearchCase::IgnoreCase) ? MaterialParameterType::GPUTextureArray : MaterialParameterType::GPUTexture;
+            }
             else if (StringUtils::Compare(param->Type.TypeName, "FlaxEngine.GPUBuffer") == 0)
                 mp.Type = MaterialParameterType::GPUBuffer;
             else
