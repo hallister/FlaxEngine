@@ -26,6 +26,8 @@ RigidBody::RigidBody(const SpawnParams& params)
     , _updateMassWhenScaleChanges(false)
     , _overrideMass(false)
     , _isUpdatingTransform(false)
+    , _shapeChangesDirty(false)
+    , _shapeChangesDepth(0)
 {
 }
 
@@ -246,6 +248,25 @@ void RigidBody::UpdateMass()
         PhysicsBackend::UpdateRigidDynamicActorMass(_actor, _mass, _massScale, _overrideMass == 0);
 }
 
+void RigidBody::BeginShapeChanges()
+{
+    _shapeChangesDepth++;
+}
+
+void RigidBody::EndShapeChanges()
+{
+    if (_shapeChangesDepth <= 0)
+    {
+        LOG(Warning, "EndShapeChanges called on Rigid Body '{0}' without a matching BeginShapeChanges.", GetNamePath());
+        return;
+    }
+    if (--_shapeChangesDepth != 0 || !_shapeChangesDirty)
+        return;
+    _shapeChangesDirty = false;
+    UpdateBounds();
+    UpdateMass();
+}
+
 void RigidBody::AddForce(const Vector3& force, ForceMode mode) const
 {
     if (_actor && GetEnableSimulation())
@@ -387,11 +408,27 @@ void RigidBody::OnTriggerExit(PhysicsColliderActor* c)
 
 void RigidBody::OnColliderChanged(Collider* c)
 {
+    if (_shapeChangesDepth > 0)
+    {
+        _shapeChangesDirty = true;
+        return;
+    }
     UpdateMass();
 
     // TODO: maybe wake up only if one ore more shapes attached is active?
     //if (GetStartAwake())
     //	WakeUp();
+}
+
+void RigidBody::OnColliderAttached(Collider* c)
+{
+    if (_shapeChangesDepth > 0)
+    {
+        _shapeChangesDirty = true;
+        return;
+    }
+    UpdateBounds();
+    UpdateMass();
 }
 
 void RigidBody::UpdateBounds()

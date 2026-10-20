@@ -180,10 +180,7 @@ void Collider::Attach(RigidBody* rigidBody)
     _cachedLocalPoseRot = _localTransform.Orientation;
     PhysicsBackend::SetShapeLocalPose(_shape, _cachedLocalPosePos, _cachedLocalPoseRot);
     if (rigidBody->IsDuringPlay())
-    {
-        rigidBody->UpdateBounds();
-        rigidBody->UpdateMass();
-    }
+        rigidBody->OnColliderAttached(this);
 }
 
 void Collider::UpdateLayerBits()
@@ -335,7 +332,9 @@ void Collider::EndPlay()
             PhysicsBackend::DetachShape(_shape, actor);
         if (rigidBody)
         {
-            rigidBody->OnColliderChanged(this);
+            // A body leaving play with its colliders is destroyed, so it needs no new mass for each one
+            if (rigidBody->IsDuringPlay())
+                rigidBody->OnColliderChanged(this);
         }
         else if (_staticActor)
         {
