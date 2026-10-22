@@ -38,7 +38,9 @@ DEFINE_INTERNAL_CALL(int32) PlatformInternal_MemoryCompare(const void* buf1, con
 DEFINE_INTERNAL_CALL(void) DebugLogHandlerInternal_LogWrite(LogType level, MString* msgObj)
 {
 #if LOG_ENABLE
-    StringView msg;
+    // Copied: a StringView would point into the managed string, which a GC on another thread can move while this
+    // thread is in native code, and the logger's handlers read it after the log line is written
+    String msg;
     MUtils::ToString(msgObj, msg);
     Log::Logger::Write(level, msg);
 #endif
@@ -51,7 +53,8 @@ DEFINE_INTERNAL_CALL(void) DebugLogHandlerInternal_Log(LogType level, MString* m
         return;
 
     // Get info
-    StringView msg;
+    // Copied, as above
+    String msg;
     MUtils::ToString(msgObj, msg);
     //const String objName = obj ? obj->ToString() : String::Empty;
 
