@@ -265,7 +265,7 @@ struct DrawBatch
 struct BatchedDrawCall
 {
     DrawCall DrawCall;
-    uint32 ObjectsStartIndex = 0; // Index of the instances start in the ObjectsBuffer (set internally). 32-bit: a frame can hold more than 65535 objects (eg. per-instance forward foliage draws), which wrapped a 16-bit index and drew batches with other objects' transforms.
+    uint32 ObjectsStartIndex = 0; // Index of the instances start in the ObjectsBuffer (set internally). 32-bit as a frame can have over 65535 objects.
     Array<struct ShaderObjectData, ConcurrentArenaAllocation> Instances;
 
     BatchedDrawCall() { CRASH; } // Don't use it
