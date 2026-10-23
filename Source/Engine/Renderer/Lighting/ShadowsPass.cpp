@@ -30,6 +30,168 @@
 #define NormalOffsetScaleTweak METERS_TO_UNITS(1)
 #define LocalLightNearPlane METERS_TO_UNITS(0.1f)
 
+// Temporary diagnostics for the directional cascade seam flip (Construct): logs what changed between two redraws of a cascade while the view and sun hold still
+#define SHADOWS_SEAM_DEBUG 1
+#if SHADOWS_SEAM_DEBUG
+#include "Engine/Core/Collections/Sorting.h"
+#include "Engine/Graphics/Materials/IMaterial.h"
+#include "Engine/Graphics/Shaders/GPUShader.h"
+#include "Engine/Renderer/RenderList.h"
+
+namespace SeamDebug
+{
+    struct DrawRecord
+    {
+        uint32 Hash;
+        int32 Dither;
+        Float3 Position;
+        float Radius;
+        int32 Indices;
+        int32 Instances;
+        const IMaterial* Material;
+
+        bool operator<(const DrawRecord& other) const
+        {
+            return Hash < other.Hash;
+        }
+    };
+
+    struct Cascade
+    {
+        bool Valid;
+        uint32 InputsHash;
+        uint32 MatrixHash;
+        Float3 Center;
+        float Radius;
+        Array<DrawRecord> Draws;
+        // Set by SetupLight for the frame being drawn
+        uint32 PendingInputsHash;
+        uint32 PendingMatrixHash;
+        Float3 PendingCenter;
+        float PendingRadius;
+        uint64 PendingFrame;
+    };
+
+    Cascade Cascades[MAX_CSM_CASCADES];
+    int32 LinesLogged = 0;
+    const int32 MaxLines = 400;
+
+    uint32 HashBytes(uint32 hash, const void* data, int32 size)
+    {
+        const byte* bytes = (const byte*)data;
+        for (int32 i = 0; i < size; i++)
+        {
+            hash ^= bytes[i];
+            hash *= 16777619u;
+        }
+        return hash;
+    }
+
+    template<typename T>
+    uint32 Hash(uint32 hash, const T& value)
+    {
+        return HashBytes(hash, &value, sizeof(T));
+    }
+
+    void AddDraws(Array<DrawRecord>& draws, const RenderListBuffer<DrawCall>& drawCalls, const RenderListBuffer<int32>& indices)
+    {
+        for (int32 i = 0; i < indices.Count(); i++)
+        {
+            const DrawCall& drawCall = drawCalls.Get()[indices.Get()[i]];
+            uint32 hash = 2166136261u;
+            hash = Hash(hash, drawCall.Material);
+            hash = Hash(hash, drawCall.Geometry.IndexBuffer);
+            hash = Hash(hash, drawCall.Geometry.VertexBuffers[0]);
+            hash = Hash(hash, drawCall.Geometry.VertexBuffersOffsets[0]);
+            hash = Hash(hash, drawCall.Draw.StartIndex);
+            hash = Hash(hash, drawCall.Draw.IndicesCount);
+            hash = Hash(hash, drawCall.InstanceCount);
+            hash = Hash(hash, drawCall.World);
+            auto& e = draws.AddOne();
+            e.Hash = hash;
+            e.Dither = drawCall.Surface.LODDitherFactor;
+            e.Position = drawCall.ObjectPosition;
+            e.Radius = drawCall.ObjectRadius;
+            e.Indices = drawCall.Draw.IndicesCount;
+            e.Instances = drawCall.InstanceCount;
+            e.Material = drawCall.Material;
+        }
+    }
+
+    String Describe(const DrawRecord& e)
+    {
+        String name = TEXT("?");
+        if (e.Material && e.Material->GetShader())
+            name = String(e.Material->GetShader()->GetName());
+        return String::Format(TEXT("pos ({}, {}, {}) radius {} indices {} instances {} dither {} material {}"), e.Position.X, e.Position.Y, e.Position.Z, e.Radius, e.Indices, e.Instances, e.Dither, name);
+    }
+
+    void Log(const String& line)
+    {
+        if (LinesLogged >= MaxLines)
+            return;
+        LinesLogged++;
+        LOG_STR(Info, line);
+        if (LinesLogged == MaxLines)
+            LOG(Info, "[SeamDebug] line limit reached, logging stops");
+    }
+
+    // Compares this redraw of a cascade with its last one and logs what differs while the inputs held still
+    void Check(int32 cascadeIndex, const RenderContext& mainContext, const RenderContext& shadowContext)
+    {
+        Cascade& c = Cascades[cascadeIndex];
+        if (c.PendingFrame != Engine::FrameCount)
+            return;
+        Array<DrawRecord> draws;
+        AddDraws(draws, shadowContext.List->DrawCalls, shadowContext.List->DrawCallsLists[(int32)DrawCallsListType::Depth].Indices);
+        AddDraws(draws, mainContext.List->DrawCalls, shadowContext.List->ShadowDepthDrawCallsList.Indices);
+        Sorting::QuickSort(draws.Get(), draws.Count());
+
+        if (c.Valid && c.InputsHash == c.PendingInputsHash)
+        {
+            // Diff the sorted draw lists
+            Array<DrawRecord> added, removed;
+            int32 ditherChanges = 0;
+            int32 a = 0, b = 0;
+            while (a < c.Draws.Count() || b < draws.Count())
+            {
+                if (b >= draws.Count() || (a < c.Draws.Count() && c.Draws[a].Hash < draws[b].Hash))
+                    removed.Add(c.Draws[a++]);
+                else if (a >= c.Draws.Count() || draws[b].Hash < c.Draws[a].Hash)
+                    added.Add(draws[b++]);
+                else
+                {
+                    if (c.Draws[a].Dither != draws[b].Dither)
+                        ditherChanges++;
+                    a++;
+                    b++;
+                }
+            }
+            const bool matrixChanged = c.MatrixHash != c.PendingMatrixHash;
+            if (matrixChanged || added.HasItems() || removed.HasItems() || ditherChanges != 0)
+            {
+                Log(String::Format(TEXT("[SeamDebug] frame {} cascade {}: view and sun unchanged; matrix {}; draws {} -> {} (+{} -{}), LOD dither changes {}"),
+                    Engine::FrameCount, cascadeIndex, matrixChanged ? TEXT("CHANGED") : TEXT("same"), c.Draws.Count(), draws.Count(), added.Count(), removed.Count(), ditherChanges));
+                if (matrixChanged)
+                    Log(String::Format(TEXT("[SeamDebug]   center ({}, {}, {}) -> ({}, {}, {}), radius {} -> {}"),
+                        c.Center.X, c.Center.Y, c.Center.Z, c.PendingCenter.X, c.PendingCenter.Y, c.PendingCenter.Z, c.Radius, c.PendingRadius));
+                for (int32 i = 0; i < added.Count() && i < 4; i++)
+                    Log(String(TEXT("[SeamDebug]   + ")) + Describe(added[i]));
+                for (int32 i = 0; i < removed.Count() && i < 4; i++)
+                    Log(String(TEXT("[SeamDebug]   - ")) + Describe(removed[i]));
+            }
+        }
+
+        c.Valid = true;
+        c.InputsHash = c.PendingInputsHash;
+        c.MatrixHash = c.PendingMatrixHash;
+        c.Center = c.PendingCenter;
+        c.Radius = c.PendingRadius;
+        c.Draws = MoveTemp(draws);
+    }
+}
+#endif
+
 GPU_CB_STRUCT(Data {
     ShaderGBufferData GBuffer;
     ShaderLightData Light;
@@ -1197,6 +1359,25 @@ void ShadowsPass::SetupLight(ShadowsCustomBuffer& shadows, RenderContext& render
         // Calculate view*projection matrix
         Matrix::Multiply(shadowView, shadowProjection, shadowVP);
         tile.SetWorldToShadow(shadowVP);
+#if SHADOWS_SEAM_DEBUG
+        {
+            auto& c = SeamDebug::Cascades[cascadeIndex];
+            const auto& view = renderContext.View;
+            uint32 inputs = 2166136261u;
+            inputs = SeamDebug::Hash(inputs, view.IV);
+            inputs = SeamDebug::Hash(inputs, view.NonJitteredProjection);
+            inputs = SeamDebug::Hash(inputs, view.Near);
+            inputs = SeamDebug::Hash(inputs, view.Far);
+            inputs = SeamDebug::Hash(inputs, view.Origin);
+            inputs = SeamDebug::Hash(inputs, light.Direction);
+            inputs = SeamDebug::Hash(inputs, atlasLight.Resolution);
+            c.PendingInputsHash = inputs;
+            c.PendingMatrixHash = SeamDebug::Hash(2166136261u, shadowVP);
+            c.PendingCenter = frustumCenter;
+            c.PendingRadius = frustumRadius;
+            c.PendingFrame = Engine::FrameCount;
+        }
+#endif
 
         // Setup context for cascade
         auto& shadowContext = renderContextBatch.Contexts[atlasLight.ContextIndex + contextIndex++];
@@ -1810,6 +1991,10 @@ void ShadowsPass::RenderShadowMaps(RenderContextBatch& renderContextBatch)
 
             // Draw objects depth
             auto& shadowContext = renderContextBatch.Contexts[atlasLight.ContextIndex + contextIndex++];
+#if SHADOWS_SEAM_DEBUG && COMPILE_WITH_PROFILER
+            if (atlasLight.Type == ShadowAtlasLight::Directional)
+                SeamDebug::Check(tileIndex, renderContext, shadowContext);
+#endif
             shadowContext.List->ExecuteDrawCalls(shadowContext, DrawCallsListType::Depth);
             shadowContext.List->ExecuteDrawCalls(shadowContext, shadowContext.List->ShadowDepthDrawCallsList, renderContext.List, nullptr);
             if (atlasLight.HasStaticShadowContext)
