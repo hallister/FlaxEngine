@@ -87,7 +87,7 @@ namespace SeamDebug
     // Kept per view (render buffers) so the editor's viewports and the game view don't overwrite each other
     Dictionary<const void*, ViewState> Views;
     int32 LinesLogged = 0;
-    const int32 MaxLines = 400;
+    const int32 MaxLines = 3000;
 
     uint32 HashBytes(uint32 hash, const void* data, int32 size)
     {
@@ -170,7 +170,8 @@ namespace SeamDebug
             const float farDelta = Math::Abs(v.Far - view.Far);
             const Real originDelta = (v.Origin - view.Origin).Length();
             const float sunDot = Float3::Dot(v.SunDirection, sunDirection);
-            const bool changed = ivDelta > 0.0f || projDelta > 0.0f || nearDelta > 0.0f || farDelta > 0.0f || originDelta > 0.0f || sunDot != 1.0f || v.Resolution != resolution || v.SunDirection != sunDirection;
+            const bool sunChanged = v.SunDirection.X != sunDirection.X || v.SunDirection.Y != sunDirection.Y || v.SunDirection.Z != sunDirection.Z;
+            const bool changed = ivDelta > 0.0f || projDelta > 0.0f || nearDelta > 0.0f || farDelta > 0.0f || originDelta > 0.0f || sunChanged || v.Resolution != resolution;
             const bool small = ivDelta < 1.0f && originDelta == 0.0f && sunDot > 0.99999f;
             if (changed && small)
             {
