@@ -34,6 +34,7 @@
 #define SHADOWS_SEAM_DEBUG 1
 #if SHADOWS_SEAM_DEBUG
 #include "Engine/Core/Collections/Sorting.h"
+#include "Engine/Core/Collections/Dictionary.h"
 #include "Engine/Graphics/Materials/IMaterial.h"
 #include "Engine/Graphics/Shaders/GPUShader.h"
 #include "Engine/Renderer/RenderList.h"
@@ -72,7 +73,19 @@ namespace SeamDebug
         uint64 PendingFrame;
     };
 
-    Cascade Cascades[MAX_CSM_CASCADES];
+    struct ViewState
+    {
+        Cascade Cascades[MAX_CSM_CASCADES];
+        bool HasInputs = false;
+        Matrix IV, Projection;
+        float Near, Far;
+        Vector3 Origin;
+        Float3 SunDirection;
+        int32 Resolution;
+    };
+
+    // Kept per view (render buffers) so the editor's viewports and the game view don't overwrite each other
+    Dictionary<const void*, ViewState> Views;
     int32 LinesLogged = 0;
     const int32 MaxLines = 400;
 
@@ -136,10 +149,50 @@ namespace SeamDebug
             LOG(Info, "[SeamDebug] line limit reached, logging stops");
     }
 
+    float MaxDelta(const Matrix& a, const Matrix& b)
+    {
+        float result = 0.0f;
+        for (int32 i = 0; i < 16; i++)
+            result = Math::Max(result, Math::Abs(a.Raw[i] - b.Raw[i]));
+        return result;
+    }
+
+    // Logs small changes of the view or sun between frames (big ones are the camera or sun really moving)
+    void CheckInputs(const RenderContext& renderContext, const Float3& sunDirection, int32 resolution)
+    {
+        ViewState& v = Views[renderContext.Buffers];
+        const RenderView& view = renderContext.View;
+        if (v.HasInputs)
+        {
+            const float ivDelta = MaxDelta(v.IV, view.IV);
+            const float projDelta = MaxDelta(v.Projection, view.NonJitteredProjection);
+            const float nearDelta = Math::Abs(v.Near - view.Near);
+            const float farDelta = Math::Abs(v.Far - view.Far);
+            const Real originDelta = (v.Origin - view.Origin).Length();
+            const float sunDot = Float3::Dot(v.SunDirection, sunDirection);
+            const bool changed = ivDelta > 0.0f || projDelta > 0.0f || nearDelta > 0.0f || farDelta > 0.0f || originDelta > 0.0f || sunDot != 1.0f || v.Resolution != resolution || v.SunDirection != sunDirection;
+            const bool small = ivDelta < 1.0f && originDelta == 0.0f && sunDot > 0.99999f;
+            if (changed && small)
+            {
+                Log(String::Format(TEXT("[SeamDebug] frame {} view {}: small input change: view matrix max delta {}, projection max delta {}, near {} -> {}, far {} -> {}, sun ({}, {}, {}) -> ({}, {}, {}), resolution {} -> {}"),
+                    Engine::FrameCount, (uint64)renderContext.Buffers, ivDelta, projDelta, v.Near, view.Near, v.Far, view.Far,
+                    v.SunDirection.X, v.SunDirection.Y, v.SunDirection.Z, sunDirection.X, sunDirection.Y, sunDirection.Z, v.Resolution, resolution));
+            }
+        }
+        v.HasInputs = true;
+        v.IV = view.IV;
+        v.Projection = view.NonJitteredProjection;
+        v.Near = view.Near;
+        v.Far = view.Far;
+        v.Origin = view.Origin;
+        v.SunDirection = sunDirection;
+        v.Resolution = resolution;
+    }
+
     // Compares this redraw of a cascade with its last one and logs what differs while the inputs held still
     void Check(int32 cascadeIndex, const RenderContext& mainContext, const RenderContext& shadowContext)
     {
-        Cascade& c = Cascades[cascadeIndex];
+        Cascade& c = Views[mainContext.Buffers].Cascades[cascadeIndex];
         if (c.PendingFrame != Engine::FrameCount)
             return;
         Array<DrawRecord> draws;
@@ -170,8 +223,8 @@ namespace SeamDebug
             const bool matrixChanged = c.MatrixHash != c.PendingMatrixHash;
             if (matrixChanged || added.HasItems() || removed.HasItems() || ditherChanges != 0)
             {
-                Log(String::Format(TEXT("[SeamDebug] frame {} cascade {}: view and sun unchanged; matrix {}; draws {} -> {} (+{} -{}), LOD dither changes {}"),
-                    Engine::FrameCount, cascadeIndex, matrixChanged ? TEXT("CHANGED") : TEXT("same"), c.Draws.Count(), draws.Count(), added.Count(), removed.Count(), ditherChanges));
+                Log(String::Format(TEXT("[SeamDebug] frame {} view {} cascade {}: view and sun unchanged; matrix {}; draws {} -> {} (+{} -{}), LOD dither changes {}"),
+                    Engine::FrameCount, (uint64)mainContext.Buffers, cascadeIndex, matrixChanged ? TEXT("CHANGED") : TEXT("same"), c.Draws.Count(), draws.Count(), added.Count(), removed.Count(), ditherChanges));
                 if (matrixChanged)
                     Log(String::Format(TEXT("[SeamDebug]   center ({}, {}, {}) -> ({}, {}, {}), radius {} -> {}"),
                         c.Center.X, c.Center.Y, c.Center.Z, c.PendingCenter.X, c.PendingCenter.Y, c.PendingCenter.Z, c.Radius, c.PendingRadius));
@@ -1218,6 +1271,10 @@ void ShadowsPass::SetupLight(ShadowsCustomBuffer& shadows, RenderContext& render
     atlasLight.CascadeSplits = renderContext.View.Near + Float4(cascadeSplits) * viewRange;
     atlasLight.CascadeBlendSize = Math::Saturate(light.CascadeBlendSize);
 
+#if SHADOWS_SEAM_DEBUG
+    SeamDebug::CheckInputs(renderContext, light.Direction, atlasLight.Resolution);
+#endif
+
     // Update cached state (invalidate it if the light changed)
     atlasLight.ValidateCache(renderContext.View, light);
 
@@ -1361,7 +1418,7 @@ void ShadowsPass::SetupLight(ShadowsCustomBuffer& shadows, RenderContext& render
         tile.SetWorldToShadow(shadowVP);
 #if SHADOWS_SEAM_DEBUG
         {
-            auto& c = SeamDebug::Cascades[cascadeIndex];
+            auto& c = SeamDebug::Views[renderContext.Buffers].Cascades[cascadeIndex];
             const auto& view = renderContext.View;
             uint32 inputs = 2166136261u;
             inputs = SeamDebug::Hash(inputs, view.IV);
