@@ -77,6 +77,8 @@ namespace SeamDebug
     {
         Cascade Cascades[MAX_CSM_CASCADES];
         bool HasInputs = false;
+        int32 Checks = 0, SameInputChecks = 0;
+        uint64 LastHeartbeat = 0;
         Matrix IV, Projection;
         float Near, Far;
         Vector3 Origin;
@@ -193,9 +195,20 @@ namespace SeamDebug
     // Compares this redraw of a cascade with its last one and logs what differs while the inputs held still
     void Check(int32 cascadeIndex, const RenderContext& mainContext, const RenderContext& shadowContext)
     {
-        Cascade& c = Views[mainContext.Buffers].Cascades[cascadeIndex];
+        ViewState& v = Views[mainContext.Buffers];
+        Cascade& c = v.Cascades[cascadeIndex];
         if (c.PendingFrame != Engine::FrameCount)
             return;
+        v.Checks++;
+        if (c.Valid && c.InputsHash == c.PendingInputsHash)
+            v.SameInputChecks++;
+        if (Engine::FrameCount - v.LastHeartbeat >= 300)
+        {
+            // Proves the check runs, so silence means nothing changed
+            Log(String::Format(TEXT("[SeamDebug] heartbeat frame {} view {}: {} cascade redraws checked, {} with view and sun unchanged"), Engine::FrameCount, (uint64)mainContext.Buffers, v.Checks, v.SameInputChecks));
+            v.LastHeartbeat = Engine::FrameCount;
+            v.Checks = v.SameInputChecks = 0;
+        }
         Array<DrawRecord> draws;
         AddDraws(draws, shadowContext.List->DrawCalls, shadowContext.List->DrawCallsLists[(int32)DrawCallsListType::Depth].Indices);
         AddDraws(draws, mainContext.List->DrawCalls, shadowContext.List->ShadowDepthDrawCallsList.Indices);
