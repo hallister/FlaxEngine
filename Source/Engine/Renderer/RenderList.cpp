@@ -951,7 +951,7 @@ void RenderList::SortDrawCalls(const RenderContext& renderContext, bool reverseD
 
 FORCE_INLINE bool CanUseInstancing(DrawPass pass)
 {
-    // Forward only batches materials that allow it there (IMaterial::IsForwardOrderIndependent)
+    // Forward instances only the pre-batched draw calls of order-independent materials (IMaterial::IsForwardOrderIndependent); its sorted draw calls aren't batched as no forward material allows instancing there
     return pass == DrawPass::GBuffer || pass == DrawPass::Depth || pass == DrawPass::MotionVectors || pass == DrawPass::Forward;
 }
 

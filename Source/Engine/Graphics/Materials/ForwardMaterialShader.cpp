@@ -24,8 +24,8 @@ DrawPass ForwardMaterialShader::GetDrawModes() const
 bool ForwardMaterialShader::CanUseInstancing(const RenderContext& renderContext, InstancingHandler& handler) const
 {
     handler = { SurfaceDrawCallHandler::GetHash, SurfaceDrawCallHandler::CanBatch, };
-    // TODO: support instancing when using ForwardShadingFeature (lit materials pick lights and probes per draw call)
-    return renderContext.View.Pass == DrawPass::Depth || (renderContext.View.Pass == DrawPass::Forward && IsForwardOrderIndependent());
+    // TODO: support instancing when using ForwardShadingFeature
+    return renderContext.View.Pass == DrawPass::Depth;
 }
 
 void ForwardMaterialShader::Bind(BindParameters& params)

@@ -91,7 +91,7 @@ public:
     }
 
     /// <summary>
-    /// Determines whether material is a forward surface whose draws don't need sorting by depth: unlit with additive or multiply blend, which give the same result in any order. Its instanced draws can be kept batched in the forward pass.
+    /// Determines whether material is a forward surface whose draws don't need sorting by depth among themselves: unlit with additive or multiply blend, which give the same result in any order. Foliage keeps its instances batched and they're drawn instanced before the depth-sorted transparency (which is then blended over them).
     /// </summary>
     FORCE_INLINE bool IsForwardOrderIndependent() const
     {
