@@ -670,7 +670,7 @@ API_STRUCT() struct FLAXENGINE_API ToneMappingSettings : ISerializable
     /// <summary>
     /// The look applied after the AGX tonemapper's curve. Used only when the mode is AGX.
     /// </summary>
-    API_FIELD(Attributes="EditorOrder(3), PostProcessSetting((int)ToneMappingSettingsOverride.Look)")
+    API_FIELD(Attributes="EditorOrder(3), PostProcessSetting((int)ToneMappingSettingsOverride.Look), VisibleIf(nameof(ShowAgXLook))")
     AgXLook Look = AgXLook::None;
 
 public:
