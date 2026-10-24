@@ -36,9 +36,9 @@ GPU_CB_STRUCT(Data {
     float WhiteTemp;
     float WhiteTint;
 
-    Float3 AgXSlope;
-    float AgXSaturation;
-    Float3 AgXPower;
+    Float3 LookSlope;
+    float LookSaturation;
+    Float3 LookPower;
     float LutWeight;
 
     void Init(const PostProcessSettings& settings, GPUTexture*& lut)
@@ -48,23 +48,23 @@ GPU_CB_STRUCT(Data {
         // White Balance
         WhiteTemp = toneMapping.WhiteTemperature;
         WhiteTint = toneMapping.WhiteTint;
-        // AgX look (ASC CDL applied after the AgX curve)
-        switch (toneMapping.Mode == ToneMappingMode::AGX ? toneMapping.Look : AgXLook::None)
+        // Look (an ASC CDL applied after the tonemapper's curve; only AGX has looks for now)
+        switch (toneMapping.Mode == ToneMappingMode::AGX ? toneMapping.Look : ToneMappingLook::None)
         {
-        case AgXLook::Punchy:
-            AgXSlope = Float3::One;
-            AgXPower = Float3(1.35f);
-            AgXSaturation = 1.4f;
+        case ToneMappingLook::Punchy:
+            LookSlope = Float3::One;
+            LookPower = Float3(1.35f);
+            LookSaturation = 1.4f;
             break;
-        case AgXLook::Golden:
-            AgXSlope = Float3(1.0f, 0.9f, 0.5f);
-            AgXPower = Float3(0.8f);
-            AgXSaturation = 0.8f;
+        case ToneMappingLook::Golden:
+            LookSlope = Float3(1.0f, 0.9f, 0.5f);
+            LookPower = Float3(0.8f);
+            LookSaturation = 0.8f;
             break;
         default:
-            AgXSlope = Float3::One;
-            AgXPower = Float3::One;
-            AgXSaturation = 1.0f;
+            LookSlope = Float3::One;
+            LookPower = Float3::One;
+            LookSaturation = 1.0f;
             break;
         }
         // Shadows

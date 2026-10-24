@@ -25,8 +25,8 @@ namespace FlaxEngine
     public partial struct ToneMappingSettings
     {
         /// <summary>
-        /// Whether or not to show the AgX look.
+        /// Whether or not to show the look (only the AGX mode has looks for now).
         /// </summary>
-        public bool ShowAgXLook => (Mode == ToneMappingMode.AGX);
+        public bool ShowLook => (Mode == ToneMappingMode.AGX);
     }
 }

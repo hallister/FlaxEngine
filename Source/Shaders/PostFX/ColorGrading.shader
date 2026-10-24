@@ -35,9 +35,9 @@ float ColorCorrectionHighlightsMin;
 float WhiteTemp;
 float WhiteTint;
 
-float3 AgXSlope;
-float AgXSaturation;
-float3 AgXPower;
+float3 LookSlope;
+float LookSaturation;
+float3 LookPower;
 float LutWeight;
 META_CB_END
 
@@ -237,7 +237,7 @@ float3 TonemapAGX(float3 linearColor)
             - 0.00232;
 
     // Look (none, punchy or golden)
-    color = agxAscCdl(color, AgXSlope, float3(0.0, 0.0, 0.0), AgXPower, AgXSaturation);
+    color = agxAscCdl(color, LookSlope, float3(0.0, 0.0, 0.0), LookPower, LookSaturation);
     color = mul(color, AgXOutsetMatrix);
     color = pow(max(float3(0.0, 0.0, 0.0), color), float3(2.2, 2.2, 2.2));
     color = saturate(color);
