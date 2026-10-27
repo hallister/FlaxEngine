@@ -262,7 +262,7 @@ struct DrawBatch
     }
 };
 
-struct BatchedDrawCall
+struct FLAXENGINE_API BatchedDrawCall
 {
     DrawCall DrawCall;
     uint32 ObjectsStartIndex = 0; // Index of the instances start in the ObjectsBuffer (set internally). 32-bit as a frame can have over 65535 objects.
