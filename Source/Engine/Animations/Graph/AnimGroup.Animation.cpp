@@ -754,14 +754,16 @@ Variant AnimGraphExecutor::SampleAnimation(AnimGraphNode* node, bool loop, float
     return nodes;
 }
 
-// A synced blend point's normalized phase as a time into its own animation, its phase offset added
-FORCE_INLINE void ToSyncedTime(const AnimSampleData& sample, float& length, float& pos, float& prevPos)
+// A synced blend point's normalized phase as a time into its own animation, its phase offset added (wrapped when looping,
+// held at the ends otherwise)
+FORCE_INLINE void ToSyncedTime(const AnimSampleData& sample, bool loop, float& length, float& pos, float& prevPos)
 {
     if (!sample.Synced || sample.Anim == nullptr)
         return;
     length = sample.Anim->GetLength();
-    pos = Math::Frac(pos + sample.Data.Z) * length;
-    prevPos = Math::Frac(prevPos + sample.Data.Z) * length;
+    const float phase = pos + sample.Data.Z, prevPhase = prevPos + sample.Data.Z;
+    pos = (loop ? Math::Frac(phase) : Math::Saturate(phase)) * length;
+    prevPos = (loop ? Math::Frac(prevPhase) : Math::Saturate(prevPhase)) * length;
 }
 
 Variant AnimGraphExecutor::SampleAnimation(AnimGraphNode* node, bool loop, float startTimePos, AnimSampleData& sample)
@@ -773,7 +775,7 @@ Variant AnimGraphExecutor::SampleAnimation(AnimGraphNode* node, bool loop, float
 
     float pos, prevPos, length = sample.Length;
     GetAnimPos(loop, length, sample.Speed, startTimePos, sample.PrevTimePos, sample.TimePos, pos, prevPos);
-    ToSyncedTime(sample, length, pos, prevPos);
+    ToSyncedTime(sample, loop, length, pos, prevPos);
 
     const auto nodes = node->GetNodes(this);
     InitNodes(nodes);
@@ -796,8 +798,8 @@ Variant AnimGraphExecutor::SampleAnimationsWithBlend(AnimGraphNode* node, bool l
     float posA, prevPosA, posB, prevPosB, lengthA = a.Length, lengthB = b.Length;
     GetAnimPos(loop, a.Length, a.Speed, startTimePos, a.PrevTimePos, a.TimePos, posA, prevPosA);
     GetAnimPos(loop, b.Length, b.Speed, startTimePos, b.PrevTimePos, b.TimePos, posB, prevPosB);
-    ToSyncedTime(a, lengthA, posA, prevPosA);
-    ToSyncedTime(b, lengthB, posB, prevPosB);
+    ToSyncedTime(a, loop, lengthA, posA, prevPosA);
+    ToSyncedTime(b, loop, lengthB, posB, prevPosB);
 
     // Sample the animations with blending
     const auto nodes = node->GetNodes(this);
@@ -840,9 +842,9 @@ Variant AnimGraphExecutor::SampleAnimationsWithBlend(AnimGraphNode* node, bool l
     GetAnimPos(loop, a.Length, a.Speed, startTimePos, a.PrevTimePos, a.TimePos, posA, prevPosA);
     GetAnimPos(loop, b.Length, b.Speed, startTimePos, b.PrevTimePos, b.TimePos, posB, prevPosB);
     GetAnimPos(loop, c.Length, c.Speed, startTimePos, c.PrevTimePos, c.TimePos, posC, prevPosC);
-    ToSyncedTime(a, lengthA, posA, prevPosA);
-    ToSyncedTime(b, lengthB, posB, prevPosB);
-    ToSyncedTime(c, lengthC, posC, prevPosC);
+    ToSyncedTime(a, loop, lengthA, posA, prevPosA);
+    ToSyncedTime(b, loop, lengthB, posB, prevPosB);
+    ToSyncedTime(c, loop, lengthC, posC, prevPosC);
 
     // Sample the animations with blending
     const auto nodes = node->GetNodes(this);
