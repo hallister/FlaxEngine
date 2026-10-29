@@ -20,14 +20,16 @@ struct AnimSampleData
     float Speed;
     Float4 Data;
     ANIM_GRAPH_MULTI_BLEND_INDEX MultiBlendIndex; // Index of the animation in the multi-blend node data array
+    bool Synced; // Time is a normalized phase shared by all blend points (see MultiBlendAnimationSources::DefaultSynced)
 
     AnimSampleData(AnimGraphExecutor* executor, const MultiBlendInputs& inputs, AnimGraphNode* node, ANIM_GRAPH_MULTI_BLEND_INDEX multiBlendIndex)
         : TimePos(0.0f)
         , PrevTimePos(0.0f)
         , MultiBlendIndex(multiBlendIndex)
+        , Synced(inputs.SyncLength)
     {
         Data = node->Values[inputs.AnimationsStartIndex + multiBlendIndex * 2].AsFloat4();
-        Speed = Data.W;
+        Speed = Synced ? 1.0f : Data.W;
         AnimGraphBox* box;
         switch (inputs.Sources)
         {
@@ -46,6 +48,8 @@ struct AnimSampleData
             CRASH;
             break;
         }
+        if (Synced)
+            Length = 1.0f;
     }
 };
 
@@ -61,6 +65,7 @@ MultiBlendInputs::MultiBlendInputs(AnimGraphNode* node)
         Sources = (MultiBlendAnimationSources)node->Values[4].AsInt;
         AnimationsStartIndex = 5;
     }
+    ApplySync();
 }
 
 MultiBlendInputs::MultiBlendInputs(AnimGraphExecutor* executor, AnimGraphNode* node)
@@ -69,16 +74,36 @@ MultiBlendInputs::MultiBlendInputs(AnimGraphExecutor* executor, AnimGraphNode* n
     Speed = (float)executor->tryGetValue(node->GetBox(1), node->Values[1]);
     Loop = (bool)executor->tryGetValue(node->GetBox(2), node->Values[2]);
     StartTime = (float)executor->tryGetValue(node->GetBox(3), node->Values[3]);
-    SyncLength = false; // TODO: make it configurable via node settings? (change node->Values[2] to contain flags)
+    SyncLength = false;
     if (node->Values.Count() > 4 && node->Values[4].Type.Type == VariantType::Int)
     {
         Sources = (MultiBlendAnimationSources)node->Values[4].AsInt;
         AnimationsStartIndex = 5;
     }
+    ApplySync();
+}
+
+void MultiBlendInputs::ApplySync()
+{
+    // Synced sources sample like their base source, with every point on one normalized phase
+    if (Sources == MultiBlendAnimationSources::DefaultSynced)
+    {
+        Sources = MultiBlendAnimationSources::Default;
+        SyncLength = true;
+    }
+    else if (Sources == MultiBlendAnimationSources::InputAnimationsSynced)
+    {
+        Sources = MultiBlendAnimationSources::InputAnimations;
+        SyncLength = true;
+    }
 }
 
 float MultiBlendInputs::ComputeMultiBlendLength(AnimGraphExecutor* executor, AnimGraphNode* node) const
 {
+    // Synced points share a normalized phase
+    if (SyncLength)
+        return 1.0f;
+
     ANIM_GRAPH_PROFILE_EVENT("Setup Multi Blend Length");
     float length = 0.0f;
     switch (Sources)
@@ -135,13 +160,20 @@ struct MultiBlendAnimData
     {
         // Find time position in the previous frame
         sample.PrevTimePos = 0.0f;
+        bool found = false;
         for (const auto& e : prevList)
         {
             if (e.Animation == sample.MultiBlendIndex)
             {
                 sample.PrevTimePos = e.TimePosition;
+                found = true;
                 break;
             }
+        }
+        if (!found && sample.Synced && prevList.HasItems())
+        {
+            // Synced points share one phase, so a point joining the blend picks it up
+            sample.PrevTimePos = prevList[0].TimePosition;
         }
 
         if (speed * context.DeltaTime < 0.0f && bucket.LastUpdateFrame < context.CurrentFrameIndex - 1)
@@ -722,9 +754,37 @@ Variant AnimGraphExecutor::SampleAnimation(AnimGraphNode* node, bool loop, float
     return nodes;
 }
 
+// A synced blend point's normalized phase as a time into its own animation, its phase offset added (wrapped when looping,
+// held at the ends otherwise)
+FORCE_INLINE void ToSyncedTime(const AnimSampleData& sample, bool loop, float& length, float& pos, float& prevPos)
+{
+    if (!sample.Synced || sample.Anim == nullptr)
+        return;
+    length = sample.Anim->GetLength();
+    const float phase = pos + sample.Data.Z, prevPhase = prevPos + sample.Data.Z;
+    pos = (loop ? Math::Frac(phase) : Math::Saturate(phase)) * length;
+    prevPos = (loop ? Math::Frac(prevPhase) : Math::Saturate(prevPhase)) * length;
+}
+
 Variant AnimGraphExecutor::SampleAnimation(AnimGraphNode* node, bool loop, float startTimePos, AnimSampleData& sample)
 {
-    return SampleAnimation(node, loop, sample.Length, startTimePos, sample.PrevTimePos, sample.TimePos, sample.Anim, sample.Speed);
+    if (!sample.Synced)
+        return SampleAnimation(node, loop, sample.Length, startTimePos, sample.PrevTimePos, sample.TimePos, sample.Anim, sample.Speed);
+    if (sample.Anim == nullptr || !sample.Anim->IsLoaded())
+        return Value::Null;
+
+    float pos, prevPos, length = sample.Length;
+    GetAnimPos(loop, length, sample.Speed, startTimePos, sample.PrevTimePos, sample.TimePos, pos, prevPos);
+    ToSyncedTime(sample, loop, length, pos, prevPos);
+
+    const auto nodes = node->GetNodes(this);
+    InitNodes(nodes);
+    nodes->Position = pos;
+    nodes->Length = length;
+    ProcessAnimation(nodes, node, loop, length, pos, prevPos, sample.Anim, sample.Speed);
+    NormalizeRotations(nodes, _rootMotionMode);
+
+    return nodes;
 }
 
 Variant AnimGraphExecutor::SampleAnimationsWithBlend(AnimGraphNode* node, bool loop, float startTimePos, AnimSampleData& a, AnimSampleData& b, float alpha)
@@ -735,17 +795,19 @@ Variant AnimGraphExecutor::SampleAnimationsWithBlend(AnimGraphNode* node, bool l
         return Value::Null;
 
     // Get actual animation position (includes looping and start offset)
-    float posA, prevPosA, posB, prevPosB;
+    float posA, prevPosA, posB, prevPosB, lengthA = a.Length, lengthB = b.Length;
     GetAnimPos(loop, a.Length, a.Speed, startTimePos, a.PrevTimePos, a.TimePos, posA, prevPosA);
     GetAnimPos(loop, b.Length, b.Speed, startTimePos, b.PrevTimePos, b.TimePos, posB, prevPosB);
+    ToSyncedTime(a, loop, lengthA, posA, prevPosA);
+    ToSyncedTime(b, loop, lengthB, posB, prevPosB);
 
     // Sample the animations with blending
     const auto nodes = node->GetNodes(this);
     InitNodes(nodes);
     nodes->Position = (a.TimePos + b.TimePos) / 2.0f;
     nodes->Length = Math::Max(a.Length, b.Length);
-    ProcessAnimation(nodes, node, loop, a.Length, posA, prevPosA, a.Anim, a.Speed, 1.0f - alpha, ProcessAnimationMode::Override);
-    ProcessAnimation(nodes, node, loop, b.Length, posB, prevPosB, b.Anim, b.Speed, alpha, ProcessAnimationMode::BlendAdditive);
+    ProcessAnimation(nodes, node, loop, lengthA, posA, prevPosA, a.Anim, a.Speed, 1.0f - alpha, ProcessAnimationMode::Override);
+    ProcessAnimation(nodes, node, loop, lengthB, posB, prevPosB, b.Anim, b.Speed, alpha, ProcessAnimationMode::BlendAdditive);
     NormalizeRotations(nodes, _rootMotionMode);
 
     return nodes;
@@ -776,10 +838,13 @@ Variant AnimGraphExecutor::SampleAnimationsWithBlend(AnimGraphNode* node, bool l
     }
 
     // Get actual animation position (includes looping and start offset)
-    float posA, prevPosA, posB, prevPosB, posC, prevPosC;
+    float posA, prevPosA, posB, prevPosB, posC, prevPosC, lengthA = a.Length, lengthB = b.Length, lengthC = c.Length;
     GetAnimPos(loop, a.Length, a.Speed, startTimePos, a.PrevTimePos, a.TimePos, posA, prevPosA);
     GetAnimPos(loop, b.Length, b.Speed, startTimePos, b.PrevTimePos, b.TimePos, posB, prevPosB);
     GetAnimPos(loop, c.Length, c.Speed, startTimePos, c.PrevTimePos, c.TimePos, posC, prevPosC);
+    ToSyncedTime(a, loop, lengthA, posA, prevPosA);
+    ToSyncedTime(b, loop, lengthB, posB, prevPosB);
+    ToSyncedTime(c, loop, lengthC, posC, prevPosC);
 
     // Sample the animations with blending
     const auto nodes = node->GetNodes(this);
@@ -787,9 +852,9 @@ Variant AnimGraphExecutor::SampleAnimationsWithBlend(AnimGraphNode* node, bool l
     nodes->Position = (a.TimePos + b.TimePos + c.TimePos) / 3.0f;
     nodes->Length = Math::Max(a.Length, b.Length, c.Length);
     ASSERT(Math::Abs(alphaA + alphaB + alphaC - 1.0f) <= ANIM_GRAPH_BLEND_THRESHOLD); // Assumes weights are normalized
-    ProcessAnimation(nodes, node, loop, a.Length, posA, prevPosA, a.Anim, a.Speed, alphaA, ProcessAnimationMode::Override);
-    ProcessAnimation(nodes, node, loop, b.Length, posB, prevPosB, b.Anim, b.Speed, alphaB, ProcessAnimationMode::BlendAdditive);
-    ProcessAnimation(nodes, node, loop, c.Length, posC, prevPosC, c.Anim, c.Speed, alphaC, ProcessAnimationMode::BlendAdditive);
+    ProcessAnimation(nodes, node, loop, lengthA, posA, prevPosA, a.Anim, a.Speed, alphaA, ProcessAnimationMode::Override);
+    ProcessAnimation(nodes, node, loop, lengthB, posB, prevPosB, b.Anim, b.Speed, alphaB, ProcessAnimationMode::BlendAdditive);
+    ProcessAnimation(nodes, node, loop, lengthC, posC, prevPosC, c.Anim, c.Speed, alphaC, ProcessAnimationMode::BlendAdditive);
     NormalizeRotations(nodes, _rootMotionMode);
 
     return nodes;

@@ -651,6 +651,16 @@ namespace FlaxEditor.Surface.Archetypes
                 /// Node exposes series of inputs to plug in custom animation assets used by each blend point. Can be used to provide different animations based for the same Multi Blend (eg. male and female versions).
                 /// </summary>
                 InputAnimations,
+
+                /// <summary>
+                /// Default source, with all blend points kept in sync: the node's time is a normalized phase (0-1) shared by every point, each animation spans the whole phase, offset by its point's phase offset (Info.z). Points' own speeds are ignored.
+                /// </summary>
+                DefaultSynced,
+
+                /// <summary>
+                /// Input animations, with all blend points kept in sync (see DefaultSynced).
+                /// </summary>
+                InputAnimationsSynced,
             }
 
             private Button _addButton;
@@ -718,7 +728,29 @@ namespace FlaxEditor.Surface.Archetypes
             /// </summary>
             internal AnimationSources AnimationSource
             {
-                get => (AnimationSources)(int)Values[4];
+                get
+                {
+                    // Synced sources take their animations as their base source does
+                    var source = (AnimationSources)(int)Values[4];
+                    return source switch
+                    {
+                        AnimationSources.DefaultSynced => AnimationSources.Default,
+                        AnimationSources.InputAnimationsSynced => AnimationSources.InputAnimations,
+                        _ => source,
+                    };
+                }
+            }
+
+            /// <summary>
+            /// Gets whether the blend points are kept in sync (a synced animation source).
+            /// </summary>
+            internal bool IsSynced
+            {
+                get
+                {
+                    var source = (AnimationSources)(int)Values[4];
+                    return source is AnimationSources.DefaultSynced or AnimationSources.InputAnimationsSynced;
+                }
             }
 
             /// <summary>
@@ -957,8 +989,9 @@ namespace FlaxEditor.Surface.Archetypes
                     _animationSpeed.Value = 1.0f;
                 }
                 _animationPicker.Enabled = isValid;
-                _animationSpeedLabel.Enabled = isValid;
-                _animationSpeed.Enabled = isValid;
+                // Synced points all play at the node's phase, so their own speeds do nothing
+                _animationSpeedLabel.Enabled = isValid && !IsSynced;
+                _animationSpeed.Enabled = isValid && !IsSynced;
                 _addButton.Enabled = _editor.PointsCount < MaxAnimationsCount;
                 _removeButton.Enabled = isValid && (data1 != Guid.Empty || AnimationSource != AnimationSources.Default);
             }

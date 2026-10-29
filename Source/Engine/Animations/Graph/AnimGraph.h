@@ -129,6 +129,16 @@ enum class MultiBlendAnimationSources
     /// Node exposes series of inputs to plug in custom animation assets used by each blend point. Can be used to provide different animations based for the same Multi Blend (eg. male and female versions).
     /// </summary>
     InputAnimations,
+
+    /// <summary>
+    /// Default source, with all blend points kept in sync: the node's time is a normalized phase (0-1) shared by every point, each animation spans the whole phase (scaled to its own length), offset by its point's Info.z (a fraction of the phase). Points' own speeds (Info.w) are ignored. The node's output Position and Length are in phase units (Length is 1), so state machine rules reading its time get a phase, not seconds.
+    /// </summary>
+    DefaultSynced,
+
+    /// <summary>
+    /// Input animations, with all blend points kept in sync (see DefaultSynced).
+    /// </summary>
+    InputAnimationsSynced,
 };
 
 // Note data layout:
@@ -138,7 +148,7 @@ enum class MultiBlendAnimationSources
 // [3]: float StartPosition
 // [4]: MultiBlendAnimationSources Source
 // Per Blend Sample data layout:
-// [0]: Float4 Info (x=posX, y=posY, z=0, w=Speed)
+// [0]: Float4 Info (x=posX, y=posY, z=phase offset when synced, w=Speed (ignored when synced))
 // [1]: Guid Animation
 struct MultiBlendInputs
 {
@@ -152,6 +162,9 @@ struct MultiBlendInputs
     MultiBlendInputs(AnimGraphNode* node);
     MultiBlendInputs(AnimGraphExecutor* executor, AnimGraphNode* node);
     float ComputeMultiBlendLength(AnimGraphExecutor* executor, AnimGraphNode* node) const;
+
+private:
+    void ApplySync();
 };
 
 /// <summary>
