@@ -106,7 +106,6 @@ namespace FlaxEditor.Surface
             case MaterialParameterType.GPUTextureArray: return typeof(GPUTexture);
             case MaterialParameterType.GPUTextureVolume: return typeof(GPUTexture);
             case MaterialParameterType.GPUTextureCube: return typeof(GPUTexture);
-            case MaterialParameterType.GPUBuffer: return typeof(GPUBuffer);
             case MaterialParameterType.Matrix: return typeof(Matrix);
             case MaterialParameterType.ChannelMask: return typeof(ChannelMask);
             case MaterialParameterType.GameplayGlobal: return typeof(GameplayGlobals);
