@@ -131,7 +131,7 @@ enum class MultiBlendAnimationSources
     InputAnimations,
 
     /// <summary>
-    /// Default source, with all blend points kept in sync: the node's time is a normalized phase (0-1) shared by every point, each animation spans the whole phase (scaled to its own length), offset by its point's Info.z (a fraction of the phase). Points' own speeds (Info.w) are ignored.
+    /// Default source, with all blend points kept in sync: the node's time is a normalized phase (0-1) shared by every point, each animation spans the whole phase (scaled to its own length), offset by its point's Info.z (a fraction of the phase). Points' own speeds (Info.w) are ignored. The node's output Position and Length are in phase units (Length is 1), so state machine rules reading its time get a phase, not seconds.
     /// </summary>
     DefaultSynced,
 

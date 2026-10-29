@@ -742,6 +742,18 @@ namespace FlaxEditor.Surface.Archetypes
             }
 
             /// <summary>
+            /// Gets whether the blend points are kept in sync (a synced animation source).
+            /// </summary>
+            internal bool IsSynced
+            {
+                get
+                {
+                    var source = (AnimationSources)(int)Values[4];
+                    return source is AnimationSources.DefaultSynced or AnimationSources.InputAnimationsSynced;
+                }
+            }
+
+            /// <summary>
             /// Gets or sets the index of the selected animation.
             /// </summary>
             public int SelectedAnimationIndex
@@ -977,8 +989,9 @@ namespace FlaxEditor.Surface.Archetypes
                     _animationSpeed.Value = 1.0f;
                 }
                 _animationPicker.Enabled = isValid;
-                _animationSpeedLabel.Enabled = isValid;
-                _animationSpeed.Enabled = isValid;
+                // Synced points all play at the node's phase, so their own speeds do nothing
+                _animationSpeedLabel.Enabled = isValid && !IsSynced;
+                _animationSpeed.Enabled = isValid && !IsSynced;
                 _addButton.Enabled = _editor.PointsCount < MaxAnimationsCount;
                 _removeButton.Enabled = isValid && (data1 != Guid.Empty || AnimationSource != AnimationSources.Default);
             }
