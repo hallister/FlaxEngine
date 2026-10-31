@@ -136,12 +136,12 @@ FLAXENGINE_API void ReadOldGraphBoxType_Deprecated(uint32 connectionType, Varian
 
 FLAXENGINE_API StringView GetGraphFunctionTypeName_Deprecated(const Variant& v)
 {
-    // [Deprecated on 31.07.2020, expires on 31.07.2022]
-    MARK_CONTENT_DEPRECATED();
     if (v.Type.Type == VariantType::String)
         return (StringView)v;
     if (v.Type.Type == VariantType::Int)
     {
+        // [Deprecated on 31.07.2020, expires on 31.07.2022]
+        MARK_CONTENT_DEPRECATED();
         switch ((GraphConnectionType_Deprecated)v.AsInt)
         {
         case GraphConnectionType_Deprecated::Impulse:
