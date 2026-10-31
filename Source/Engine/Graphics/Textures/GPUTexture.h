@@ -353,7 +353,7 @@ public:
     uint32 RowPitch(int32 mipIndex = 0) const;
 
     /// <summary>
-    /// Calculates mip map slice pitch (in bytes).
+    /// Calculates mip map slice pitch (in bytes). For volume textures it covers all depth slices of the mip, as expected by <see cref="GPUContext.UpdateTexture"/>.
     /// </summary>
     /// <param name="mipIndex">Index of the mip.</param>
     /// <returns>Slice pitch.</returns>
@@ -364,7 +364,7 @@ public:
     /// </summary>
     /// <param name="mipIndex">Index of the mip.</param>
     /// <param name="rowPitch">The row pitch.</param>
-    /// <param name="slicePitch">The slice pitch.</param>
+    /// <param name="slicePitch">The slice pitch. For volume textures it covers all depth slices of the mip.</param>
     void ComputePitch(int32 mipIndex, uint32& rowPitch, uint32& slicePitch) const;
 
     /// <summary>
@@ -517,7 +517,7 @@ public:
     /// <param name="data">Data to upload, it must match texture dimensions. It must be valid for the next couple of frames due to GPU async task latency or use data copy.</param>
     /// <param name="mipIndex">Mip level index.</param>
     /// <param name="rowPitch">The data row pitch.</param>
-    /// <param name="slicePitch">The data slice pitch.</param>
+    /// <param name="slicePitch">The data slice pitch. For volume textures it covers all depth slices of the mip.</param>
     /// <param name="copyData">If true, the data will be copied to the async execution task instead of using the input pointer provided.</param>
     /// <returns>Created async task or null if cannot.</returns>
     GPUTask* UploadMipMapAsync(const BytesContainer& data, int32 mipIndex, int32 rowPitch, int32 slicePitch, bool copyData = false);

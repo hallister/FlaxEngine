@@ -276,7 +276,7 @@ public:
     /// <param name="mipIndex">The absolute index of the mip map to update.</param>
     /// <param name="data">The pointer to the data.</param>
     /// <param name="rowPitch">The row pitch (in bytes) of the input data.</param>
-    /// <param name="slicePitch">The slice pitch (in bytes) of the input data.</param>
+    /// <param name="slicePitch">The slice pitch (in bytes) of the input data. For volume textures it covers all depth slices of the mip.</param>
     API_FUNCTION() virtual void UpdateTexture(GPUTexture* texture, int32 arrayIndex, int32 mipIndex, const void* data, uint32 rowPitch, uint32 slicePitch) = 0;
 
     /// <summary>

@@ -300,6 +300,7 @@ void GPUTexture::ComputePitch(int32 mipIndex, uint32& rowPitch, uint32& slicePit
     int32 mipWidth, mipHeight;
     GetMipSize(mipIndex, mipWidth, mipHeight);
     RenderTools::ComputePitch(Format(), mipWidth, mipHeight, rowPitch, slicePitch);
+    slicePitch *= CalculateMipSize(Depth(), mipIndex);
 }
 
 int32 GPUTexture::CalculateMipSize(int32 size, int32 mipLevel) const
@@ -691,7 +692,7 @@ bool GPUTexture::UploadData(TextureData& data, bool copyData)
         for (int32 mipLevel = 0; mipLevel < MipLevels(); mipLevel++)
         {
             TextureMipData* mip = data.GetData(arrayIndex, mipLevel);
-            UploadMipMapAsync(mip->Data, mipLevel, mip->RowPitch, mip->DepthPitch, copyData);
+            UploadMipMapAsync(mip->Data, mipLevel, mip->RowPitch, mip->DepthPitch * CalculateMipSize(Depth(), mipLevel), copyData);
         }
     }
     return false;
