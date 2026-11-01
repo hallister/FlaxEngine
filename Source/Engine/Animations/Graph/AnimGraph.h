@@ -344,6 +344,13 @@ public:
         int32 StateDataStart;
     };
 
+    struct StrideWarpBucket
+    {
+        uint64 LastUpdateFrame;
+        float StrideScale;
+        float PelvisDrop;
+    };
+
     struct SpringBonePhysicsDynamic
     {
         Vector3 CurrentPosition;
@@ -364,6 +371,7 @@ public:
             SlotBucket Slot;
             InstanceDataBucket InstanceData;
             SpringBonePhysicsBucket SpringBonePhysics;
+            StrideWarpBucket StrideWarp;
         };
     };
 
@@ -611,6 +619,14 @@ public:
         int32 KeepNode;
     };
 
+    struct StrideWarpData
+    {
+        int16 Pelvis;
+        int16 IKFoot[2];
+        int16 Foot[2];
+        int16 Thigh[2];
+    };
+
     /// <summary>
     /// Custom cached data per node type. Compact to use as small amount of memory as possible.
     /// </summary>
@@ -629,6 +645,7 @@ public:
             TransformNodeData TransformNode;
             CopyNodeData CopyNode;
             OrientationWarpData OrientationWarp;
+            StrideWarpData StrideWarp;
         };
     };
 
