@@ -1147,6 +1147,52 @@ namespace FlaxEditor.Surface.Archetypes
             },
             new NodeArchetype
             {
+                TypeID = 39,
+                Title = "Orientation Warp",
+                Description = "Turns the lower body of the pose by the angle (in degrees) about the up axis, toward the actual movement direction, while the spine chain turns back so the upper body keeps facing where it did.",
+                Flags = NodeFlags.AnimGraph | NodeFlags.FixedSize,
+                Size = new Float2(270, 290),
+                DefaultValues = new object[]
+                {
+                    string.Empty, // Body root node
+                    string.Empty, // IK foot root node
+                    string.Empty, // Spine start node
+                    string.Empty, // Spine end node
+                    string.Empty, // Keep node
+                    0.0f, // Angle
+                    1.0f, // Alpha
+                    0.0f, // Speed
+                    0.0f, // Min speed
+                    0.75f, // Distribution
+                    1, // Up axis (Y)
+                },
+                Elements = new[]
+                {
+                    NodeElementArchetype.Factory.Output(0, string.Empty, typeof(void), 0),
+                    NodeElementArchetype.Factory.Input(0, string.Empty, true, typeof(void), 1),
+                    NodeElementArchetype.Factory.Input(1, "Angle", true, typeof(float), 2, 5),
+                    NodeElementArchetype.Factory.Input(2, "Alpha", true, typeof(float), 3, 6),
+                    NodeElementArchetype.Factory.Input(3, "Speed", true, typeof(float), 4, 7),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 4, "Min Speed:", tooltip: "Off below this speed. 0 to always warp."),
+                    NodeElementArchetype.Factory.Float(110, Surface.Constants.LayoutOffsetY * 4, 8, -1, 0.0f),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 5, "Body Root:", tooltip: "Lower body node (eg. pelvis)."),
+                    NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 5, 150, 0),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 6, "IK Foot Root:", tooltip: "Optional IK feet parent (eg. ik_foot_root)."),
+                    NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 6, 150, 1),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 7, "Spine Start:", tooltip: "First spine node that turns back (eg. spine_01)."),
+                    NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 7, 150, 2),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 8, "Spine End:", tooltip: "Last spine node; keeps its facing (eg. spine_05)."),
+                    NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 8, 150, 3),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 9, "Keep Node:", tooltip: "Optional node that keeps its model transform (eg. ik_hand_root)."),
+                    NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 9, 150, 4),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 10, "Distribution:", tooltip: "0: first spine node turns back fully. 1: even spread."),
+                    NodeElementArchetype.Factory.Float(110, Surface.Constants.LayoutOffsetY * 10, 9, -1, 0.0f, 1.0f),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 11, "Up Axis:", tooltip: "Model space axis to turn about."),
+                    NodeElementArchetype.Factory.ComboBox(110, Surface.Constants.LayoutOffsetY * 11, 60, 10, new[] { "X", "Y", "Z" }),
+                }
+            },
+            new NodeArchetype
+            {
                 TypeID = 37,
                 Title = "Instance Transform",
                 Description = "Animated model transformation (in world space).",
