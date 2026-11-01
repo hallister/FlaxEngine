@@ -139,6 +139,18 @@ void StrideWarpBucketInit(AnimGraphInstanceData::Bucket& bucket)
     bucket.StrideWarp.PelvisDrop = 0.0f;
 }
 
+void InertializationBucketInit(AnimGraphInstanceData::Bucket& bucket)
+{
+    // Note: DynamicStateStart stays, so the node reuses its data after a reset (the state is cleared to zeros when it gets allocated)
+    auto& data = bucket.Inertialization;
+    data.LastUpdateFrame = 0;
+    data.HistoryCount = 0;
+    data.PreviousDeltaTime = 0.0f;
+    data.BlendPosition = 0.0f;
+    data.BlendDuration = 0.0f;
+    data.LastRequest = false;
+}
+
 struct MultiBlendSortTag
 {
     Variant* Values;
@@ -427,6 +439,10 @@ bool AnimGraphBase::onNodeLoaded(Node* n)
             }
             break;
         }
+        // Inertialization
+        case 40:
+            ADD_BUCKET(InertializationBucketInit);
+            break;
         // Animation Instance Data
         case 33:
             ADD_BUCKET(InstanceDataBucketInit);

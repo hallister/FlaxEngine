@@ -1643,6 +1643,7 @@ namespace FlaxEditor.Surface.Archetypes
                     InterruptionInstant = 16,
                     InterruptionSourceState = 32,
                     InterruptionDestinationState = 64,
+                    Inertialization = 128,
                 }
 
                 /// <summary>
@@ -1856,6 +1857,20 @@ namespace FlaxEditor.Surface.Archetypes
             /// </summary>
             [HideInEditor]
             internal bool HasBlendProfileData => _data.BlendMask != Guid.Empty || !Mathf.NearEqual(_data.BlendScale, DefaultBlendScale);
+
+            /// <summary>
+            /// If checked, switches at once and lets the Inertialization node above the state machine smooth the change (cross-fades without one).
+            /// </summary>
+            [EditorOrder(65), DefaultValue(false)]
+            public bool Inertialization
+            {
+                get => _data.HasFlag(Data.FlagTypes.Inertialization);
+                set
+                {
+                    _data.SetFlag(Data.FlagTypes.Inertialization, value);
+                    SourceState.SaveTransitions(true);
+                }
+            }
 
             /// <summary>
             /// Transition interruption options (flags, can select multiple values).

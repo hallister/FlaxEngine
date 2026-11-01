@@ -1356,6 +1356,26 @@ namespace FlaxEditor.Surface.Archetypes
                     NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 15, 150, 6),
                 }
             },
+            new NodeArchetype
+            {
+                TypeID = 40,
+                Title = "Inertialization",
+                Description = "Smooths pose changes requested below it (eg. by state machine transitions) without cross-fading",
+                Flags = NodeFlags.AnimGraph,
+                Size = new Float2(200, 60),
+                DefaultValues = new object[]
+                {
+                    false, // Request
+                    0.2f, // Blend time
+                },
+                Elements = new[]
+                {
+                    NodeElementArchetype.Factory.Output(0, string.Empty, typeof(void), 0),
+                    NodeElementArchetype.Factory.Input(0, string.Empty, true, typeof(void), 1),
+                    NodeElementArchetype.Factory.Input(1, "Request", true, typeof(bool), 2, 0),
+                    NodeElementArchetype.Factory.Input(2, "Blend Time", true, typeof(float), 3, 1),
+                }
+            },
         };
     }
 }
