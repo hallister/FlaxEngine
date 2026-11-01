@@ -1908,6 +1908,7 @@ void AnimGraphExecutor::ProcessGroupAnimation(Box* boxBase, Node* nodeBase, Valu
         const int32 FirstBlendPoseBoxIndex = 3;
         const int32 MaxBlendPoses = 8;
         const int32 BlendScaleBoxId = FirstBlendPoseBoxIndex + MaxBlendPoses; // Must match BlendPose.BlendScaleBoxId in C#
+        const int32 BlendMaskBoxId = BlendScaleBoxId + 1; // Must match BlendPose.BlendMaskBoxId in C#
         value = Value::Null;
 
         // Note data layout:
@@ -1951,6 +1952,13 @@ void AnimGraphExecutor::ProcessGroupAnimation(Box* boxBase, Node* nodeBase, Valu
             const auto valueA = tryGetValue(node->GetBox(FirstBlendPoseBoxIndex + bucket.PreviousBlendPoseIndex), Value::Null);
             const auto valueB = tryGetValue(node->GetBox(FirstBlendPoseBoxIndex + bucket.BlendPoseIndex), Value::Null);
             SkeletonMask* blendMask = node->Assets.Count() != 0 ? (SkeletonMask*)node->Assets[0].Get() : nullptr;
+            const auto blendMaskBox = node->TryGetBox(BlendMaskBoxId);
+            if (blendMaskBox && blendMaskBox->HasConnection())
+            {
+                // Use the mask connected to the node (eg. a parameter) instead of the picked one (none or another asset type turns the blend profile off)
+                const Value blendMaskValue = tryGetValue(blendMaskBox, Value::Null);
+                blendMask = blendMaskValue.Type.Type == VariantType::Asset ? ScriptingObject::Cast<SkeletonMask>(blendMaskValue.AsAsset) : nullptr;
+            }
             float blendScale = BlendProfile::DefaultScale;
             if (node->Values.Count() > 5)
                 blendScale = (float)tryGetValue(node->TryGetBox(BlendScaleBoxId), node->Values[5]);
