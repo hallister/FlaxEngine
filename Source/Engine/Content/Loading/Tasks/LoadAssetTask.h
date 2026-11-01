@@ -93,6 +93,7 @@ private:
                             Platform::AtomicStore(&asset->_loadState, (int64)Asset::LoadState::LoadFailed);
                             LOG(Error, "Loading asset \'{0}\' result: {1}.", ToString(), ToString(Result::TaskFailed));
                         }
+                        asset->onLoadingTaskEnded();
                         break;
                     }
                     task = task->GetContinueWithTask();

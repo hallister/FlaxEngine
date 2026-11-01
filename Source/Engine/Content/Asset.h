@@ -58,6 +58,7 @@ protected:
     volatile int64 _refCount;
     volatile int64 _loadState;
     volatile intptr _loadingTask;
+    volatile int64 _reloadPending; // Set when Reload is requested while a load is still in flight, so the reload runs once that load ends
 
     int8 _deleteFileOnUnload : 1; // Indicates that asset source file should be removed on asset unload
     int8 _isVirtual : 1; // Indicates that asset is pure virtual (generated or temporary, has no storage so won't be saved)
@@ -296,6 +297,7 @@ protected:
     virtual bool IsInternalType() const;
 
     bool onLoad(LoadAssetTask* task);
+    void onLoadingTaskEnded();
     void onLoaded();
     virtual void onLoaded_MainThread();
     virtual void onUnload_MainThread();
