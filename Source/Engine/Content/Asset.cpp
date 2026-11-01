@@ -222,6 +222,7 @@ Asset::Asset(const SpawnParams& params, const AssetInfo* info)
     , _refCount(0)
     , _loadState(0)
     , _loadingTask(0)
+    , _reloadPending(0)
     , _deleteFileOnUnload(false)
     , _isVirtual(false)
 {
@@ -422,8 +423,18 @@ void Asset::Reload()
     // It's better to call it from the main thread
     if (IsInMainThread())
     {
+        // If the asset is still loading, reload it once that load ends instead of waiting for it here.
+        // Waiting can stall: the load may be running on this very thread (eg. a nested asset load re-saved a dependency
+        // and notified this asset in the middle of its own load) or on a thread that needs the main thread to progress.
+        Platform::AtomicStore(&_reloadPending, 1);
+        if (Platform::AtomicRead(&_loadingTask) != 0)
+            return;
+        if (Platform::InterlockedCompareExchange(&_reloadPending, 0, 1) != 1)
+            return; // The load that just ended took the pending reload and will schedule it
+
         LOG(Info, "Reloading asset {0}", ToString());
 
+        // Flush the pending loaded event (if any)
         WaitForLoaded();
 
         // Fire event
@@ -541,6 +552,7 @@ void Asset::CancelStreaming()
         Platform::AtomicStore(&_loadingTask, 0);
         LOG(Warning, "Cancel loading task for \'{0}\'", ToString());
         loadingTask->Cancel();
+        onLoadingTaskEnded();
     }
 }
 
@@ -657,6 +669,9 @@ bool Asset::onLoad(LoadAssetTask* task)
 
     Locker.Unlock();
 
+    // Run the reload that was requested during this load
+    onLoadingTaskEnded();
+
     // Send event
     if (isLoaded)
     {
@@ -683,6 +698,17 @@ bool Asset::onLoad(LoadAssetTask* task)
 }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+
+void Asset::onLoadingTaskEnded()
+{
+    if (Platform::InterlockedCompareExchange(&_reloadPending, 0, 1) == 1)
+    {
+        // Always go through the main thread queue (never reload inline, this can be called from within the asset's own load)
+        Function<void()> action;
+        action.Bind<Asset, &Asset::Reload>(this);
+        Task::StartNew(New<MainThreadActionTask>(action, this));
+    }
+}
 
 void Asset::onLoaded()
 {

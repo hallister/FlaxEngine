@@ -440,11 +440,10 @@ void BinaryAsset::OnStorageReloaded(FlaxStorage* storage, bool failed)
         LOG(Error, "Asset reloading failed. Asset: \'{0}\'.", ToString());
     }
 
-    // Don't reload on save
-    if (_isSaving == false)
-    {
-        Reload();
-    }
+    // Don't reload on save (and don't inform dependant assets either, SaveToAsset does it once the save ends)
+    if (_isSaving)
+        return;
+    Reload();
 
     // Inform dependant asset (use cloned version because it might be modified by assets when they got reloaded)
     auto dependantAssets = _dependantAssets;

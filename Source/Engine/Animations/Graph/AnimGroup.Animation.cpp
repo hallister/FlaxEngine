@@ -2211,7 +2211,7 @@ void AnimGraphExecutor::ProcessGroupAnimation(Box* boxBase, Node* nodeBase, Valu
         // Load function graph
         auto function = node->Assets[0].As<AnimationGraphFunction>();
         auto& data = node->Data.AnimationGraphFunction;
-        if (data.Graph == nullptr)
+        if (data.Graph == nullptr || function == nullptr)
         {
             value = Value::Zero;
             break;
@@ -2842,7 +2842,7 @@ void AnimGraphExecutor::ProcessGroupFunction(Box* boxBase, Node* node, Value& va
         }
         const auto function = functionCallNode->Assets[0].As<AnimationGraphFunction>();
         auto& data = functionCallNode->Data.AnimationGraphFunction;
-        if (data.Graph == nullptr)
+        if (data.Graph == nullptr || function == nullptr)
         {
             value = Value::Zero;
             break;
