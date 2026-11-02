@@ -137,9 +137,10 @@ void RigidBody::SetMass(float value)
 {
     if (value == _mass)
         return;
+    const bool wasOverriden = _overrideMass != 0;
     _mass = value;
     _overrideMass = true;
-    UpdateMass();
+    OnMassChanged(wasOverriden);
 }
 
 float RigidBody::GetMassScale() const
@@ -152,7 +153,7 @@ void RigidBody::SetMassScale(float value)
     if (value == _massScale)
         return;
     _massScale = value;
-    UpdateMass();
+    OnMassChanged(_overrideMass != 0);
 }
 
 void RigidBody::SetCenterOfMassOffset(const Float3& value)
@@ -221,6 +222,11 @@ void RigidBody::SetSleepThreshold(const float value) const
 Vector3 RigidBody::GetCenterOfMass() const
 {
     return _actor ? PhysicsBackend::GetRigidDynamicActorCenterOfMass(_actor) : Vector3::Zero;
+}
+
+Float3 RigidBody::GetMassSpaceInertiaTensor() const
+{
+    return _actor ? PhysicsBackend::GetRigidDynamicActorMassSpaceInertiaTensor(_actor) : Float3::Zero;
 }
 
 bool RigidBody::IsSleeping() const
@@ -414,6 +420,14 @@ void RigidBody::UpdateScale()
     // Check if update mass
     if (_updateMassWhenScaleChanges && !_overrideMass)
         UpdateMass();
+}
+
+void RigidBody::OnMassChanged(bool rescale)
+{
+    // Only an overriden mass spreads over the shapes with one density, so scaling it keeps the inertia a full update gives
+    if (rescale && _actor && PhysicsBackend::SetRigidDynamicActorMassScaled(_actor, Math::Max(_mass * _massScale, 0.001f)))
+        return;
+    UpdateMass();
 }
 
 void RigidBody::Serialize(SerializeStream& stream, const void* otherObj)

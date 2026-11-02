@@ -174,6 +174,8 @@ public:
     static void SetRigidDynamicActorMaxDepenetrationVelocity(void* actor, float value);
     static void SetRigidDynamicActorSolverIterationCounts(void* actor, int32 minPositionIters, int32 minVelocityIters);
     static void UpdateRigidDynamicActorMass(void* actor, float& mass, float massScale, bool autoCalculate);
+    static bool SetRigidDynamicActorMassScaled(void* actor, float mass);
+    static Float3 GetRigidDynamicActorMassSpaceInertiaTensor(void* actor);
     static void AddRigidDynamicActorForce(void* actor, const Vector3& force, ForceMode mode);
     static void AddRigidDynamicActorForceAtPosition(void* actor, const Vector3& force, const Vector3& position, ForceMode mode);
     static void AddRigidDynamicActorTorque(void* actor, const Vector3& torque, ForceMode mode);
