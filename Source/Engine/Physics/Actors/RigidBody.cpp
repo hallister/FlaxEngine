@@ -127,7 +127,7 @@ void RigidBody::SetOverrideMass(bool value)
     if (value == GetOverrideMass())
         return;
     _overrideMass = value;
-    UpdateMass();
+    OnMassChanged(false);
 }
 
 float RigidBody::GetMass() const
@@ -461,6 +461,12 @@ void RigidBody::UpdateScale()
 
 void RigidBody::OnMassChanged(bool rescale)
 {
+    if (_shapeChangesDepth > 0)
+    {
+        _shapeChangesDirty = true;
+        return;
+    }
+
     // Only an overriden mass spreads over the shapes with one density, so scaling it keeps the inertia a full update gives
     if (rescale && _actor && PhysicsBackend::SetRigidDynamicActorMassScaled(_actor, Math::Max(_mass * _massScale, 0.001f)))
         return;

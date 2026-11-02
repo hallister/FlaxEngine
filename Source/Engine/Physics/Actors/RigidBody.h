@@ -324,11 +324,11 @@ public:
     /// <summary>
     /// Holds back the mass, inertia and bounds updates that attaching, detaching, enabling or disabling colliders cause, until the matching <see cref="EndShapeChanges"/>. Each such change otherwise recomputes the mass over every shape on the body, so changing many colliders one by one costs the square of their count.
     /// </summary>
-    /// <remarks>Calls nest. The outermost <see cref="EndShapeChanges"/> updates the body once, if any collider changed. The mass, center of mass and bounds read in between are those from before the changes.</remarks>
+    /// <remarks>Calls nest. The outermost <see cref="EndShapeChanges"/> updates the body once, if any collider or the mass settings changed. The center of mass, inertia and bounds read in between are those from before the changes; a mass set in the scope reads back at once but only reaches the simulation at its end.</remarks>
     API_FUNCTION() void BeginShapeChanges();
 
     /// <summary>
-    /// Ends a <see cref="BeginShapeChanges"/> scope. The outermost one updates the body's bounds and mass once, if any collider changed in the scope.
+    /// Ends a <see cref="BeginShapeChanges"/> scope. The outermost one updates the body's bounds and mass once, if any collider or the mass settings changed in the scope.
     /// </summary>
     API_FUNCTION() void EndShapeChanges();
 
