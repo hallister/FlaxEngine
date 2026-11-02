@@ -2657,6 +2657,25 @@ void PhysicsBackend::UpdateRigidDynamicActorMass(void* actor, float& mass, float
     }
 }
 
+bool PhysicsBackend::SetRigidDynamicActorMassScaled(void* actor, float mass)
+{
+    auto actorPhysX = (PxRigidDynamic*)actor;
+    const float oldMass = actorPhysX->getMass();
+    if (oldMass <= 0.0f)
+        return false;
+
+    // The same shapes at a new mass have their inertia scaled by the mass ratio and the center of mass unchanged
+    actorPhysX->setMassSpaceInertiaTensor(actorPhysX->getMassSpaceInertiaTensor() * (mass / oldMass));
+    actorPhysX->setMass(mass);
+    return true;
+}
+
+Float3 PhysicsBackend::GetRigidDynamicActorMassSpaceInertiaTensor(void* actor)
+{
+    auto actorPhysX = (PxRigidDynamic*)actor;
+    return P2C(actorPhysX->getMassSpaceInertiaTensor());
+}
+
 void PhysicsBackend::AddRigidDynamicActorForce(void* actor, const Vector3& force, ForceMode mode)
 {
     auto actorPhysX = (PxRigidDynamic*)actor;
