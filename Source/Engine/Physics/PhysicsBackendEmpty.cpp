@@ -377,6 +377,16 @@ void PhysicsBackend::UpdateRigidDynamicActorMass(void* actor, float& mass, float
 {
 }
 
+bool PhysicsBackend::SetRigidDynamicActorMassScaled(void* actor, float mass)
+{
+    return false;
+}
+
+Float3 PhysicsBackend::GetRigidDynamicActorMassSpaceInertiaTensor(void* actor)
+{
+    return Float3::Zero;
+}
+
 void PhysicsBackend::AddRigidDynamicActorForce(void* actor, const Vector3& force, ForceMode mode)
 {
 }
