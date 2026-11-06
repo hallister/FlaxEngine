@@ -353,6 +353,13 @@ public:
         float PelvisDrop;
     };
 
+    struct SlopeWarpBucket
+    {
+        uint64 LastUpdateFrame;
+        Float3 Normal;
+        float PelvisDrop;
+    };
+
     struct SpringBonePhysicsDynamic
     {
         Vector3 CurrentPosition;
@@ -388,6 +395,7 @@ public:
             SpringBonePhysicsBucket SpringBonePhysics;
             StrideWarpBucket StrideWarp;
             InertializationBucket Inertialization;
+            SlopeWarpBucket SlopeWarp;
         };
     };
 
@@ -635,7 +643,8 @@ public:
         int32 KeepNode;
     };
 
-    struct StrideWarpData
+    // Stride Warp and Slope Warp
+    struct LegWarpData
     {
         int16 Pelvis;
         int16 IKFoot[2];
@@ -661,7 +670,7 @@ public:
             TransformNodeData TransformNode;
             CopyNodeData CopyNode;
             OrientationWarpData OrientationWarp;
-            StrideWarpData StrideWarp;
+            LegWarpData LegWarp;
         };
     };
 

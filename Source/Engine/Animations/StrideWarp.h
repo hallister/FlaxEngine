@@ -2,9 +2,7 @@
 
 #pragma once
 
-#include "Engine/Core/Math/Transform.h"
-
-struct SkeletonNode;
+#include "LegWarp.h"
 
 /// <summary>
 /// Stride warping: lengthens or shortens the steps of a movement pose so a walk or run cycle can match the actual movement speed with little or no play rate change.
@@ -15,25 +13,9 @@ class FLAXENGINE_API StrideWarp
 {
 public:
     /// <summary>
-    /// A leg of the warp. Node indices are skeleton node indices, -1 when unused.
+    /// A leg of the warp: its IK foot (optional) sets the stride.
     /// </summary>
-    struct Leg
-    {
-        /// <summary>
-        /// The IK foot node (eg. ik_foot_l). Its position sets the stride and it moves to the warped foot position. When unused, the foot itself sets the stride.
-        /// </summary>
-        int32 IKFoot = -1;
-
-        /// <summary>
-        /// The foot node (eg. foot_l). Its parent is the leg's joint (calf).
-        /// </summary>
-        int32 Foot = -1;
-
-        /// <summary>
-        /// The thigh node (eg. thigh_l). Must be the parent of the foot's parent, otherwise the leg isn't solved.
-        /// </summary>
-        int32 Thigh = -1;
-    };
+    typedef WarpLeg Leg;
 
     /// <summary>
     /// The warping setup.
