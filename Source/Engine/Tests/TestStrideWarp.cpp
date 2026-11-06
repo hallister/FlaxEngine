@@ -1,6 +1,7 @@
 // Copyright (c) Wojciech Figat. All rights reserved.
 
 #include "Engine/Animations/StrideWarp.h"
+#include "Engine/Animations/SlopeWarp.h"
 #include "Engine/Core/Collections/Array.h"
 #include "Engine/Core/Math/Math.h"
 #include "Engine/Core/Math/Quaternion.h"
@@ -532,5 +533,159 @@ TEST_CASE("StrideWarp")
         // Frame rate independent: two half steps match one full step
         const float half = StrideWarp::Ease(StrideWarp::Ease(1.0f, 2.0f, 8.0f, 0.05f), 2.0f, 8.0f, 0.05f);
         CHECK(Math::NearEqual(half, StrideWarp::Ease(1.0f, 2.0f, 8.0f, 0.1f), 1e-4f));
+    }
+}
+
+// Slope Warp shares Stride Warp's leg solve (LegWarp), so it is tested on the same skeleton and pose
+TEST_CASE("SlopeWarp")
+{
+    Array<SkeletonNode> nodes;
+    SetupSkeleton(nodes);
+    Transform input[Count];
+    SetupPose(input);
+    MatchIKFeet(nodes, input);
+    Transform before[Count];
+    for (int32 i = 0; i < Count; i++)
+        before[i] = ModelTransform(nodes, input, i);
+    SlopeWarp::Settings settings;
+    settings.Pelvis = Pelvis;
+    settings.Legs[0].IKFoot = IKFootL;
+    settings.Legs[0].Foot = FootL;
+    settings.Legs[0].Thigh = ThighL;
+    settings.Legs[1].IKFoot = IKFootR;
+    settings.Legs[1].Foot = FootR;
+    settings.Legs[1].Thigh = ThighR;
+
+    // Ground rising ahead (+Z) at 12 degrees: the left foot (ahead) goes up, the right foot (behind) goes down
+    const float angle = 12.0f * DegreesToRadians;
+    const Float3 uphill(0, Math::Cos(angle), -Math::Sin(angle));
+
+    SECTION("Flat ground returns the input pose")
+    {
+        Transform pose[Count];
+        Platform::MemoryCopy(pose, input, sizeof(input));
+        const float drop = SlopeWarp::GetPelvisDrop(nodes.Get(), Count, settings, Float3::UnitY, pose);
+        CHECK(drop == 0.0f);
+        SlopeWarp::Warp(nodes.Get(), Count, settings, Float3::UnitY, drop, pose);
+        for (int32 i = 0; i < Count; i++)
+        {
+            CHECK(pose[i].Translation == input[i].Translation);
+            CHECK(pose[i].Orientation == input[i].Orientation);
+        }
+    }
+
+    SECTION("The feet move straight up or down onto the slope and turn with it")
+    {
+        Transform pose[Count];
+        Platform::MemoryCopy(pose, input, sizeof(input));
+        const float drop = SlopeWarp::GetPelvisDrop(nodes.Get(), Count, settings, uphill, pose);
+        CHECK(drop > 0.0f);
+        CHECK(drop < settings.MaxPelvisDrop);
+        SlopeWarp::Warp(nodes.Get(), Count, settings, uphill, drop, pose);
+        Transform after[Count];
+        for (int32 i = 0; i < Count; i++)
+            after[i] = ModelTransform(nodes, pose, i);
+        const Quaternion tilt = Quaternion::FindBetween(Float3::UnitY, uphill);
+
+        // The pelvis only lowers
+        CHECK(SamePosition(after[Pelvis].Translation, before[Pelvis].Translation - Vector3(0, drop, 0)));
+        CHECK(SameRotation(after[Pelvis].Orientation, before[Pelvis].Orientation));
+
+        for (const int32 foot : { FootL, FootR })
+        {
+            const int32 ikFoot = foot == FootL ? IKFootL : IKFootR;
+            const int32 thigh = foot == FootL ? ThighL : ThighR;
+            const int32 calf = foot == FootL ? CalfL : CalfR;
+            const Real height = before[ikFoot].Translation.Z * Math::Tan(angle);
+            CHECK(Math::Abs(SlopeWarp::GetSlopeHeight(before[ikFoot].Translation, uphill) - height) < 1e-2f);
+
+            // IK feet move by the slope's height along up only, and turn with the slope
+            CHECK(SamePosition(after[ikFoot].Translation, before[ikFoot].Translation + Vector3(0, height, 0)));
+            CHECK(SameRotation(after[ikFoot].Orientation, tilt * before[ikFoot].Orientation));
+
+            // FK feet land on their IK feet, turned with the slope
+            CHECK(SamePosition(after[foot].Translation, after[ikFoot].Translation));
+            CHECK(SameRotation(after[foot].Orientation, tilt * before[foot].Orientation));
+
+            // Legs keep their bone lengths and reach no further than in the input pose
+            const Real upperBefore = Vector3::Distance(before[calf].Translation, before[thigh].Translation);
+            const Real lowerBefore = Vector3::Distance(before[foot].Translation, before[calf].Translation);
+            CHECK(Math::Abs(Vector3::Distance(after[calf].Translation, after[thigh].Translation) - upperBefore) < 1e-2f);
+            CHECK(Math::Abs(Vector3::Distance(after[foot].Translation, after[calf].Translation) - lowerBefore) < 1e-2f);
+            CHECK(Vector3::Distance(after[foot].Translation, after[thigh].Translation) <= Vector3::Distance(before[foot].Translation, before[thigh].Translation) + 1e-2f);
+        }
+        CHECK(after[FootL].Translation.Y > before[FootL].Translation.Y);
+        CHECK(after[FootR].Translation.Y < before[FootR].Translation.Y);
+    }
+
+    SECTION("Without a pelvis drop the downhill leg reaches down without stretching")
+    {
+        auto noDrop = settings;
+        noDrop.MaxPelvisDrop = 0.0f;
+        Transform pose[Count];
+        Platform::MemoryCopy(pose, input, sizeof(input));
+        CHECK(SlopeWarp::GetPelvisDrop(nodes.Get(), Count, noDrop, uphill, pose) == 0.0f);
+        SlopeWarp::Warp(nodes.Get(), Count, noDrop, uphill, 0.0f, pose);
+        CHECK(pose[Pelvis].Translation == input[Pelvis].Translation);
+        const Transform thigh = ModelTransform(nodes, pose, ThighR);
+        const Transform calf = ModelTransform(nodes, pose, CalfR);
+        const Transform foot = ModelTransform(nodes, pose, FootR);
+        CHECK(Math::Abs(Vector3::Distance(calf.Translation, thigh.Translation) - Vector3::Distance(before[CalfR].Translation, before[ThighR].Translation)) < 1e-2f);
+        CHECK(Math::Abs(Vector3::Distance(foot.Translation, calf.Translation) - Vector3::Distance(before[FootR].Translation, before[CalfR].Translation)) < 1e-2f);
+        CHECK(foot.Translation.Y < before[FootR].Translation.Y);
+    }
+
+    SECTION("Pelvis drop is limited")
+    {
+        auto limited = settings;
+        limited.MaxPelvisDrop = 0.5f;
+        CHECK(Math::NearEqual(SlopeWarp::GetPelvisDrop(nodes.Get(), Count, limited, uphill, input), 0.5f));
+    }
+
+    SECTION("Broken leg chains and missing nodes leave the pose alone")
+    {
+        auto broken = settings;
+        broken.Legs[0].Thigh = CalfL;
+        broken.Legs[1].Thigh = -1;
+        Transform pose[Count];
+        Platform::MemoryCopy(pose, input, sizeof(input));
+        CHECK(!SlopeWarp::CanWarp(nodes.Get(), Count, broken));
+        SlopeWarp::Warp(nodes.Get(), Count, broken, uphill, 5.0f, pose);
+        auto noPelvis = settings;
+        noPelvis.Pelvis = -1;
+        SlopeWarp::Warp(nodes.Get(), Count, noPelvis, uphill, 5.0f, pose);
+        for (int32 i = 0; i < Count; i++)
+            CHECK(pose[i].Translation == input[i].Translation);
+    }
+
+    SECTION("Ground normal")
+    {
+        // Alpha 0, no length or pointing down: flat
+        CHECK(Float3::NearEqual(SlopeWarp::GetGroundNormal(uphill, 0.0f, 45.0f), Float3::UnitY));
+        CHECK(Float3::NearEqual(SlopeWarp::GetGroundNormal(Float3::Zero, 1.0f, 45.0f), Float3::UnitY));
+        CHECK(Float3::NearEqual(SlopeWarp::GetGroundNormal(Float3(0, -1, 0), 1.0f, 45.0f), Float3::UnitY));
+
+        // Full alpha keeps the slope, normalized
+        CHECK(Float3::NearEqual(SlopeWarp::GetGroundNormal(uphill * 3.0f, 1.0f, 45.0f), uphill, 1e-4f));
+
+        // Half alpha tilts less, still normalized
+        const Float3 half = SlopeWarp::GetGroundNormal(uphill, 0.5f, 45.0f);
+        CHECK(Math::NearEqual(half.Length(), 1.0f, 1e-4f));
+        CHECK(half.Y > uphill.Y);
+        CHECK(half.Y < 1.0f);
+
+        // Steeper than the max slope turns back to it, the same way
+        const Float3 steep = SlopeWarp::GetGroundNormal(Float3(1, 1, 0), 1.0f, 30.0f);
+        CHECK(Math::NearEqual(steep.Y, Math::Cos(30.0f * DegreesToRadians), 1e-4f));
+        CHECK(Math::NearEqual(steep.X, Math::Sin(30.0f * DegreesToRadians), 1e-4f));
+        CHECK(Math::NearEqual(steep.Z, 0.0f, 1e-4f));
+    }
+
+    SECTION("Slope height")
+    {
+        CHECK(SlopeWarp::GetSlopeHeight(Vector3(0, 50, 0), uphill) == 0);
+        CHECK(Math::Abs(SlopeWarp::GetSlopeHeight(Vector3(0, 0, 100), uphill) - 100 * Math::Tan(angle)) < 1e-3f);
+        CHECK(Math::Abs(SlopeWarp::GetSlopeHeight(Vector3(30, 0, -100), uphill) + 100 * Math::Tan(angle)) < 1e-3f);
+        CHECK(SlopeWarp::GetSlopeHeight(Vector3(30, 0, -100), Float3::UnitY) == 0);
     }
 }

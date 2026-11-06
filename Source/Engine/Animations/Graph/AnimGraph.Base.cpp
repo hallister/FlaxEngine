@@ -130,6 +130,13 @@ void StrideWarpBucketInit(AnimGraphInstanceData::Bucket& bucket)
     bucket.StrideWarp.PelvisDrop = 0.0f;
 }
 
+void SlopeWarpBucketInit(AnimGraphInstanceData::Bucket& bucket)
+{
+    bucket.SlopeWarp.LastUpdateFrame = 0;
+    bucket.SlopeWarp.Normal = Float3::UnitY;
+    bucket.SlopeWarp.PelvisDrop = 0.0f;
+}
+
 struct MultiBlendSortTag
 {
     Variant* Values;
@@ -395,12 +402,15 @@ bool AnimGraphBase::onNodeLoaded(Node* n)
             break;
         // Stride Warp
         case 41:
+        // Slope Warp
+        case 42:
         {
-            auto& data = n->Data.StrideWarp;
+            // Both start with the pelvis and the legs' node names
+            auto& data = n->Data.LegWarp;
             data.Pelvis = -1;
             for (int32 i = 0; i < 2; i++)
                 data.IKFoot[i] = data.Foot[i] = data.Thigh[i] = -1;
-            if (_graph->BaseModel && !_graph->BaseModel->WaitForLoaded() && n->Values.Count() >= 15)
+            if (_graph->BaseModel && !_graph->BaseModel->WaitForLoaded() && n->Values.Count() >= 7)
             {
                 const auto findNode = [this, n](int32 valueIndex)
                 {
@@ -415,7 +425,14 @@ bool AnimGraphBase::onNodeLoaded(Node* n)
                     data.Thigh[i] = findNode(3 + i * 3);
                 }
             }
-            ADD_BUCKET(StrideWarpBucketInit);
+            if (n->TypeID == 41)
+            {
+                ADD_BUCKET(StrideWarpBucketInit);
+            }
+            else
+            {
+                ADD_BUCKET(SlopeWarpBucketInit);
+            }
             break;
         }
         }

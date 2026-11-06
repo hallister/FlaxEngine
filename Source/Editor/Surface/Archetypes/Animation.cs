@@ -1218,6 +1218,59 @@ namespace FlaxEditor.Surface.Archetypes
                     NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 15, 150, 6),
                 }
             },
+            new NodeArchetype
+            {
+                TypeID = 42,
+                Title = "Slope Warp",
+                Description = "Fits the legs to the slope of the ground under the character",
+                Flags = NodeFlags.AnimGraph | NodeFlags.FixedSize,
+                Size = new Float2(270, 330),
+                DefaultValues = new object[]
+                {
+                    string.Empty, // Pelvis
+                    string.Empty, // IK foot left
+                    string.Empty, // Foot left
+                    string.Empty, // Thigh left
+                    string.Empty, // IK foot right
+                    string.Empty, // Foot right
+                    string.Empty, // Thigh right
+                    new Float3(0, 1, 0), // Ground normal
+                    1.0f, // Alpha
+                    50.0f, // Max pelvis drop
+                    45.0f, // Max slope angle
+                    0.0f, // Normal interpolation speed
+                    0.0f, // Pelvis interpolation speed
+                },
+                Elements = new[]
+                {
+                    NodeElementArchetype.Factory.Output(0, string.Empty, typeof(void), 0),
+                    NodeElementArchetype.Factory.Input(0, string.Empty, true, typeof(void), 1),
+                    NodeElementArchetype.Factory.Input(1, "Ground Normal", true, typeof(Float3), 2, 7),
+                    NodeElementArchetype.Factory.Input(2, "Alpha", true, typeof(float), 3, 8),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 3, "Max Pelvis Drop:", tooltip: "Max pelvis lowering (model units) so the legs can reach. 0 keeps it in place."),
+                    NodeElementArchetype.Factory.Float(110, Surface.Constants.LayoutOffsetY * 3, 9, -1, 0.0f),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 4, "Max Slope:", tooltip: "Steepest slope the legs fit to (degrees)."),
+                    NodeElementArchetype.Factory.Float(110, Surface.Constants.LayoutOffsetY * 4, 10, -1, 0.0f, 89.0f),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 5, "Normal Speed:", tooltip: "Ground normal ease speed (per second). 0 follows at once."),
+                    NodeElementArchetype.Factory.Float(110, Surface.Constants.LayoutOffsetY * 5, 11, -1, 0.0f),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 6, "Pelvis Speed:", tooltip: "Pelvis drop ease speed (per second). 0 follows at once."),
+                    NodeElementArchetype.Factory.Float(110, Surface.Constants.LayoutOffsetY * 6, 12, -1, 0.0f),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 7, "Pelvis:", tooltip: "Pelvis node (eg. pelvis)."),
+                    NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 7, 150, 0),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 8, "IK Foot L:", tooltip: "Optional left IK foot (eg. ik_foot_l)."),
+                    NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 8, 150, 1),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 9, "Foot L:", tooltip: "Left foot node (eg. foot_l)."),
+                    NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 9, 150, 2),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 10, "Thigh L:", tooltip: "Left thigh node (eg. thigh_l)."),
+                    NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 10, 150, 3),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 11, "IK Foot R:", tooltip: "Optional right IK foot (eg. ik_foot_r)."),
+                    NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 11, 150, 4),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 12, "Foot R:", tooltip: "Right foot node (eg. foot_r)."),
+                    NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 12, 150, 5),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 13, "Thigh R:", tooltip: "Right thigh node (eg. thigh_r)."),
+                    NodeElementArchetype.Factory.SkeletonNodeNameSelect(110, Surface.Constants.LayoutOffsetY * 13, 150, 6),
+                }
+            },
         };
     }
 }
