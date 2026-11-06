@@ -52,8 +52,8 @@ float RayCastScreenSpaceShadow(GBufferData gBufferData, GBufferSample gBuffer, f
     // Use initial ray step that isn't sub-pixel to avoid in low-resolution
     float3 raySize = rayEnd - rayStart;
     float2 rayStepDst = abs(raySize).xy * depthSize;
-    float rayStepDstMin = min(rayStepDst.x, rayStepDst.y);
-    float3 rayStepMin = raySize / max(min((float)maxSteps, rayStepDstMin), 1);
+    float rayStepDstMax = max(rayStepDst.x, rayStepDst.y); // Longer axis, so rays running along one screen axis don't start past their end
+    float3 rayStepMin = raySize / max(min((float)maxSteps, rayStepDstMax), 1);
     float3 rayStep = raySize / maxSteps;
     float3 ray = rayStart + rayStepMin * (dither * 2 + 1.0f);
 
