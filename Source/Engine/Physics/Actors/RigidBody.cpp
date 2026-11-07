@@ -165,7 +165,10 @@ void RigidBody::SetCenterOfMassOffset(const Float3& value)
     Float3 delta = value - _centerOfMassOffset;
     _centerOfMassOffset = value;
     if (_actor)
+    {
         PhysicsBackend::AddRigidDynamicActorCenterOfMassOffset(_actor, delta);
+        PhysicsBackend::KeepRigidDynamicActorPose(_actor, _transform.Translation, _transform.Orientation);
+    }
 }
 
 void RigidBody::SetConstraints(const RigidbodyConstraints value)
@@ -251,7 +254,10 @@ void RigidBody::WakeUp() const
 void RigidBody::UpdateMass()
 {
     if (_actor)
+    {
         PhysicsBackend::UpdateRigidDynamicActorMass(_actor, _mass, _massScale, _overrideMass == 0);
+        PhysicsBackend::KeepRigidDynamicActorPose(_actor, _transform.Translation, _transform.Orientation);
+    }
 }
 
 void RigidBody::BeginShapeChanges()
