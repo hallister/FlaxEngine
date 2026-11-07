@@ -129,6 +129,7 @@ void InstanceDataBucketInit(AnimGraphInstanceData::Bucket& bucket)
 void OrientationWarpBucketInit(AnimGraphInstanceData::Bucket& bucket)
 {
     bucket.OrientationWarp.Angle = 0.0f;
+    bucket.OrientationWarp.Applied = 0.0f;
     bucket.OrientationWarp.LastUpdateFrame = 0;
 }
 
