@@ -32,13 +32,13 @@ namespace
     }
 }
 
-void AdditiveBlend::MeshSpace(const SkeletonNode* skeleton, int32 count, const Transform* base, const Transform* additive, float alpha, Transform* result)
+void AdditiveBlend::MeshSpace(const SkeletonNode* skeleton, int32 count, const Transform* base, const Transform* additive, float alpha, Transform* result, const Transform* referencePose)
 {
     alpha = Math::Saturate(alpha);
     Array<Transform, InlinedAllocation<256>> reference;
     reference.Resize(count);
     for (int32 i = 0; i < count; i++)
-        reference[i] = skeleton[i].LocalTransform;
+        reference[i] = referencePose ? referencePose[i] : skeleton[i].LocalTransform;
     Array<Quaternion, InlinedAllocation<256>> baseMesh, additiveMesh, referenceMesh, resultMesh;
     baseMesh.Resize(count);
     additiveMesh.Resize(count);

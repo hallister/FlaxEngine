@@ -23,5 +23,6 @@ public:
     /// <param name="additive">The additive pose (local node transformations): the reference pose with the offsets on it.</param>
     /// <param name="alpha">How much of the offsets to add (0-1).</param>
     /// <param name="result">The output pose (local node transformations). Can't be the same as the inputs.</param>
-    static void MeshSpace(const SkeletonNode* skeleton, int32 count, const Transform* base, const Transform* additive, float alpha, Transform* result);
+    /// <param name="reference">The pose the offsets are taken from (local node transformations), or null for the skeleton's reference (bind) pose. Give a pose sampled the same way as the additive one (eg. an aim offset's centre pose) so both are in the same nodes' frames.</param>
+    static void MeshSpace(const SkeletonNode* skeleton, int32 count, const Transform* base, const Transform* additive, float alpha, Transform* result, const Transform* reference = nullptr);
 };

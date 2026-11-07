@@ -1529,7 +1529,20 @@ void AnimGraphExecutor::ProcessGroupAnimation(Box* boxBase, Node* nodeBase, Valu
                     // The rotation offsets applied in mesh space (eg. aim offsets over a walk's twisting spine)
                     const auto& skeletonNodes = _graph.BaseModel->Skeleton.Nodes;
                     const int32 count = Math::Min(skeletonNodes.Count(), nodes->Nodes.Count());
-                    AdditiveBlend::MeshSpace(skeletonNodes.Get(), count, basePoseNodes->Nodes.Get(), blendPoseNodes->Nodes.Get(), alpha, nodes->Nodes.Get());
+                    // Optionally from a reference pose sampled as the blend pose is (box 4), rather than the bind pose
+                    const Transform* referencePose = nullptr;
+                    const auto referenceBox = node->TryGetBox(4);
+                    if (referenceBox && referenceBox->HasConnection())
+                    {
+                        const auto valueR = tryGetValue(referenceBox, Value::Null);
+                        if (ANIM_GRAPH_IS_VALID_PTR(valueR))
+                        {
+                            const auto referencePoseNodes = static_cast<AnimGraphImpulse*>(valueR.AsPointer);
+                            if (referencePoseNodes->Nodes.Count() >= count)
+                                referencePose = referencePoseNodes->Nodes.Get();
+                        }
+                    }
+                    AdditiveBlend::MeshSpace(skeletonNodes.Get(), count, basePoseNodes->Nodes.Get(), blendPoseNodes->Nodes.Get(), alpha, nodes->Nodes.Get(), referencePose);
                     for (int32 i = count; i < nodes->Nodes.Count(); i++)
                         nodes->Nodes[i] = basePoseNodes->Nodes[i];
                 }

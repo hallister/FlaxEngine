@@ -73,6 +73,33 @@ TEST_CASE("AdditiveBlend")
         CHECK(Quaternion::AngleBetween(Mesh(skeleton, result, 2), local) > 1.0f);
     }
 
+    SECTION("Reference Pose")
+    {
+        // The additive and reference poses sampled with their nodes in other frames than the bind pose's: here the root
+        // turned 90 degrees about X (a yaw in the model's space is a turn about the child's own Z then). Offsets taken
+        // from the reference pose come out as the yaw they are in the model's space; taken from the bind pose they don't
+        const Quaternion frame = Quaternion::Euler(90.0f, 0, 0);
+        const Quaternion yaw = Quaternion::Euler(0, 30.0f, 0);
+        Transform referencePose[Count];
+        for (int32 i = 0; i < Count; i++)
+        {
+            base[i] = reference[i];
+            referencePose[i] = reference[i];
+            additive[i] = reference[i];
+        }
+        referencePose[0].Orientation = frame;
+        additive[0].Orientation = frame;
+        // The child turned 30 degrees about the model's Y, put in its parent's (the turned root's) space
+        additive[1].Orientation = Quaternion::Invert(frame) * yaw * frame;
+        AdditiveBlend::MeshSpace(skeleton, Count, base, additive, 1.0f, result, referencePose);
+        const Quaternion expected = yaw * Mesh(skeleton, base, 1);
+        CHECK(Quaternion::AngleBetween(Mesh(skeleton, result, 1), expected) < 0.01f);
+        CHECK(Quaternion::AngleBetween(Mesh(skeleton, result, 0), Mesh(skeleton, base, 0)) < 0.01f);
+        // From the bind pose instead, the root's frame comes in as an offset too
+        AdditiveBlend::MeshSpace(skeleton, Count, base, additive, 1.0f, result);
+        CHECK(Quaternion::AngleBetween(Mesh(skeleton, result, 1), expected) > 1.0f);
+    }
+
     SECTION("Alpha")
     {
         for (int32 i = 0; i < Count; i++)

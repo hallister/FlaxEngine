@@ -641,7 +641,7 @@ namespace FlaxEditor.Surface.Archetypes
                 "\nInside NLA the the order is bottom (first node in flax) to the top (last node in flax)." +
                 "\nYou need to place animations in this order to get correct results.",
                 Flags = NodeFlags.AnimGraph,
-                Size = new Float2(170, 100),
+                Size = new Float2(170, 120),
                 DefaultValues = new object[]
                 {
                     0.0f,
@@ -653,8 +653,9 @@ namespace FlaxEditor.Surface.Archetypes
                     NodeElementArchetype.Factory.Input(0, "Base Pose", true, typeof(void), 1),
                     NodeElementArchetype.Factory.Input(1, "Blend Pose", true, typeof(void), 2),
                     NodeElementArchetype.Factory.Input(2, "Blend Alpha", true, typeof(float), 3, 0),
-                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 3, "Mesh Space:", tooltip: "Apply the rotation offsets in the model's space instead of each node's parent's (eg. for aim offsets)."),
-                    NodeElementArchetype.Factory.Bool(90, Surface.Constants.LayoutOffsetY * 3, 1),
+                    NodeElementArchetype.Factory.Input(3, "Reference Pose", true, typeof(void), 4),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 4, "Mesh Space:", tooltip: "Apply the rotation offsets in the model's space instead of each node's parent's (eg. for aim offsets). The offsets are taken from the Reference Pose if one is connected (sample it as the blend pose is, eg. an aim offset's centre pose), otherwise from the bind pose."),
+                    NodeElementArchetype.Factory.Bool(90, Surface.Constants.LayoutOffsetY * 4, 1),
                 }
             },
             new NodeArchetype
