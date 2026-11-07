@@ -14,6 +14,7 @@ class GPUResource;
 class GPUTask : public Task
 {
     friend GPUTasksContext;
+    friend class GPUTasksManager;
 
 public:
     /// <summary>
@@ -43,6 +44,18 @@ private:
     /// The context that performed this task, it should synchronize it.
     /// </summary>
     GPUTasksContext* _context;
+
+    /// <summary>
+    /// References that keep this task alive: one released when the ObjectsRemovalService deletes the task, and one held by the GPUTasksManager while the task is in its queue or buffers.
+    /// An ended task can stay in the manager for longer than its time to live (eg. behind a long queue when frames are slow), so it's freed only once the manager has let go of it too.
+    /// </summary>
+    volatile int64 _refs = 1;
+
+    void ReleaseRef()
+    {
+        if (Platform::InterlockedDecrement(&_refs) == 0)
+            Task::OnDeleteObject();
+    }
 
 protected:
     /// <summary>
@@ -138,6 +151,13 @@ protected:
 public:
     // [Task]
     String ToString() const override;
+
+public:
+    // [Object]
+    void OnDeleteObject() override
+    {
+        ReleaseRef();
+    }
 
 protected:
     // [Task]

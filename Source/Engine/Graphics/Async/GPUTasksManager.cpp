@@ -45,6 +45,8 @@ String GPUTask::ToString() const
 
 void GPUTask::Enqueue()
 {
+    // The manager keeps the task alive until it drops it from its queue and buffers
+    Platform::InterlockedIncrement(&_refs);
     GPUDevice::Instance->GetTasksManager()->_tasks.Add(this);
 }
 
@@ -88,10 +90,26 @@ void GPUTasksManager::Dispose()
     SAFE_DELETE(_executor);
 
     // Cleanup
-    Task::CancelAll(_buffers[0]);
-    Task::CancelAll(_buffers[1]);
+    for (auto& tasks : _buffers)
+    {
+        for (GPUTask* task : tasks)
+        {
+            task->Cancel();
+            task->ReleaseRef();
+        }
+        tasks.Clear();
+    }
     _bufferIndex = 0;
-    _tasks.CancelAll();
+    GPUTask* queued[16];
+    std::size_t count;
+    while ((count = _tasks.try_dequeue_bulk(queued, ARRAY_COUNT(queued))) != 0)
+    {
+        for (std::size_t i = 0; i != count; i++)
+        {
+            queued[i]->Cancel();
+            queued[i]->ReleaseRef();
+        }
+    }
 }
 
 void GPUTasksManager::FrameBegin()
@@ -130,11 +148,14 @@ int32 GPUTasksManager::RequestWork(GPUTask** buffer, int32 maxCount)
         case TaskState::Failed:
         case TaskState::Canceled:
         case TaskState::Finished:
-            // Skip task
+            // Skip task (it may be freed here if it's already past its time to live)
+            task->ReleaseRef();
             break;
         case TaskState::Queued:
             // Run queued task
+            // Releasing it can't free it before the executor runs it: a queued task hasn't ended, and the ObjectsRemovalService (which releases the other reference) flushes on this thread
             buffer[count++] = task;
+            task->ReleaseRef();
             break;
         case TaskState::Created:
         case TaskState::Running:
