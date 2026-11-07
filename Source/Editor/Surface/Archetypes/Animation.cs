@@ -584,10 +584,11 @@ namespace FlaxEditor.Surface.Archetypes
                 "\nInside NLA the the order is bottom (first node in flax) to the top (last node in flax)." +
                 "\nYou need to place animations in this order to get correct results.",
                 Flags = NodeFlags.AnimGraph,
-                Size = new Float2(170, 80),
+                Size = new Float2(170, 100),
                 DefaultValues = new object[]
                 {
                     0.0f,
+                    false, // Mesh space
                 },
                 Elements = new[]
                 {
@@ -595,6 +596,8 @@ namespace FlaxEditor.Surface.Archetypes
                     NodeElementArchetype.Factory.Input(0, "Base Pose", true, typeof(void), 1),
                     NodeElementArchetype.Factory.Input(1, "Blend Pose", true, typeof(void), 2),
                     NodeElementArchetype.Factory.Input(2, "Blend Alpha", true, typeof(float), 3, 0),
+                    NodeElementArchetype.Factory.Text(0, Surface.Constants.LayoutOffsetY * 3, "Mesh Space:", tooltip: "Apply the rotation offsets in the model's space instead of each node's parent's (eg. for aim offsets)."),
+                    NodeElementArchetype.Factory.Bool(90, Surface.Constants.LayoutOffsetY * 3, 1),
                 }
             },
             new NodeArchetype
