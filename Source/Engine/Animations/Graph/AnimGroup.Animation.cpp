@@ -1,6 +1,7 @@
 // Copyright (c) Wojciech Figat. All rights reserved.
 
 #include "AnimGraph.h"
+#include "Engine/Animations/AdditiveBlend.h"
 #include "Engine/Core/Types/VariantValueCast.h"
 #include "Engine/Content/Assets/Animation.h"
 #include "Engine/Content/Assets/SkeletonMask.h"
@@ -1522,8 +1523,18 @@ void AnimGraphExecutor::ProcessGroupAnimation(Box* boxBase, Node* nodeBase, Valu
                 const auto basePoseNodes = static_cast<AnimGraphImpulse*>(valueA.AsPointer);
                 const auto blendPoseNodes = static_cast<AnimGraphImpulse*>(valueB.AsPointer);
                 const auto& refNodes = _graph.BaseModel.Get()->GetNodes();
+                const bool meshSpace = node->Values.Count() > 1 && (bool)node->Values[1];
+                if (meshSpace)
+                {
+                    // The rotation offsets applied in mesh space (eg. aim offsets over a walk's twisting spine)
+                    const auto& skeletonNodes = _graph.BaseModel->Skeleton.Nodes;
+                    const int32 count = Math::Min(skeletonNodes.Count(), nodes->Nodes.Count());
+                    AdditiveBlend::MeshSpace(skeletonNodes.Get(), count, basePoseNodes->Nodes.Get(), blendPoseNodes->Nodes.Get(), alpha, nodes->Nodes.Get());
+                    for (int32 i = count; i < nodes->Nodes.Count(); i++)
+                        nodes->Nodes[i] = basePoseNodes->Nodes[i];
+                }
                 Transform t, basePoseTransform, blendPoseTransform, refTransform;
-                for (int32 i = 0; i < nodes->Nodes.Count(); i++)
+                for (int32 i = 0; i < nodes->Nodes.Count() && !meshSpace; i++)
                 {
                     basePoseTransform = basePoseNodes->Nodes[i];
                     blendPoseTransform = blendPoseNodes->Nodes[i];
