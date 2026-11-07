@@ -109,11 +109,11 @@ void GPUTasksManager::Dispose()
     // Cancel all performed tasks (that are waiting for sync)
     SAFE_DELETE(_executor);
 
-    // Cleanup (the tasks are no longer listed: canceling them ends them now)
+    // Cleanup (unlist the tasks first: one that ended while listed is ended now, the others end when canceled)
     for (GPUTask* task : _buffers[0])
-        Platform::AtomicStore(&task->_listed, 0);
+        Unlist(task);
     for (GPUTask* task : _buffers[1])
-        Platform::AtomicStore(&task->_listed, 0);
+        Unlist(task);
     Task::CancelAll(_buffers[0]);
     Task::CancelAll(_buffers[1]);
     _bufferIndex = 0;
@@ -123,7 +123,7 @@ void GPUTasksManager::Dispose()
     {
         for (std::size_t i = 0; i != count; i++)
         {
-            Platform::AtomicStore(&tasks[i]->_listed, 0);
+            Unlist(tasks[i]);
             tasks[i]->Cancel();
         }
     }
