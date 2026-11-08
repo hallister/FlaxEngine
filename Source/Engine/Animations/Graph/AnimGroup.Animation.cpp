@@ -197,8 +197,6 @@ struct MultiBlendAnimData
     static void AfterSample(List& newList, const AnimSampleData& sample)
     {
         CHECK(newList.Count() < AnimGraphInstanceData::MultiBlendBucket::MaxCount);
-        if (newList.Count() >= AnimGraphInstanceData::MultiBlendBucket::MaxCount)
-            return;
 
         // Save animation position for the next frame
         newList.Add({ sample.TimePos, sample.MultiBlendIndex });
