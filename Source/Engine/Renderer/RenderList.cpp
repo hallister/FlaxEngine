@@ -17,6 +17,7 @@
 #include "Engine/Graphics/Shaders/GPUVertexLayout.h"
 #include "Engine/Profiler/Profiler.h"
 #include "Engine/Content/Assets/CubeTexture.h"
+#include "Engine/Content/Assets/MaterialInstance.h"
 #include "Engine/Level/Scene/Lightmap.h"
 #include "Engine/Level/Actors/PostFxVolume.h"
 #include "Engine/Engine/Units.h"
@@ -969,6 +970,70 @@ FORCE_INLINE Span<GPUBuffer*> GetVB(GPUBuffer* const* ptr, int32 maxSize)
     while (ptr[maxSize - 1] == nullptr && maxSize > 1)
         maxSize--;
     return ToSpan<GPUBuffer*>(ptr, maxSize);
+}
+
+namespace
+{
+    // True if the material is the given one, or an instance of it at any depth of instances
+    bool IsMaterialOf(const IMaterial* material, const MaterialBase* of)
+    {
+        const MaterialBase* m = dynamic_cast<const MaterialBase*>(material);
+        while (m)
+        {
+            if (m == of)
+                return true;
+            const auto* instance = dynamic_cast<const MaterialInstance*>(m);
+            m = instance ? instance->GetBaseMaterial() : nullptr;
+        }
+        return false;
+    }
+}
+
+void RenderList::ExecuteMaterialDrawCalls(const RenderContext& renderContext, DrawCallsListType listType, MaterialBase* material, GPUTextureView* input)
+{
+    DrawCallsList& source = DrawCallsLists[(int32)listType];
+    if (!material)
+    {
+        ExecuteDrawCalls(renderContext, source, this, input);
+        return;
+    }
+    if (source.IsEmpty())
+        return;
+    PROFILE_CPU();
+
+    // A list of the material's draw calls alone, executed as any other list, so its instancing offsets are its own
+    DrawCallsList filtered;
+    filtered.CanUseInstancing = source.CanUseInstancing;
+    for (int32 i = 0; i < source.PreBatchedDrawCalls.Count(); i++)
+    {
+        const int32 index = source.PreBatchedDrawCalls.Get()[i];
+        if (IsMaterialOf(BatchedDrawCalls.Get()[index].DrawCall.Material, material))
+            filtered.PreBatchedDrawCalls.Add(index);
+    }
+    const DrawCall* drawCalls = DrawCalls.Get();
+    if (source.Batches.HasItems())
+    {
+        // Sorted: each batch holds one material's draw calls (by place in the indices), so keep the indices as they are and only its batches
+        filtered.Indices = source.Indices;
+        for (const DrawBatch& batch : source.Batches)
+        {
+            if (IsMaterialOf(drawCalls[source.Indices.Get()[batch.StartIndex]].Material, material))
+                filtered.Batches.Add(batch);
+        }
+        if (filtered.Batches.IsEmpty())
+            filtered.Indices.Clear(); // Otherwise the unbatched path would draw every index
+    }
+    else
+    {
+        // Not sorted into batches: the material's draw calls one by one
+        for (int32 i = 0; i < source.Indices.Count(); i++)
+        {
+            const int32 index = source.Indices.Get()[i];
+            if (IsMaterialOf(drawCalls[index].Material, material))
+                filtered.Indices.Add(index);
+        }
+    }
+    ExecuteDrawCalls(renderContext, filtered, this, input);
 }
 
 void RenderList::ExecuteDrawCalls(const RenderContext& renderContext, DrawCallsList& list, RenderList* drawCallsList, GPUTextureView* input)

@@ -19,6 +19,7 @@ class SceneRendering;
 class LightWithShadow;
 class IPostFxSettingsProvider;
 class CubeTexture;
+class MaterialBase;
 struct RenderContext;
 struct RenderContextBatch;
 struct Half4;
@@ -664,6 +665,16 @@ public:
     {
         ExecuteDrawCalls(renderContext, DrawCallsLists[(int32)listType], this, input);
     }
+
+    /// <summary>
+    /// Executes the collected draw calls of one material only: those whose material is it, or an instance of it (at any depth of instances).
+    /// Lets a custom pass draw a material's draw calls that this list has already collected and culled (eg. the main view's) into its own targets, without collecting them again.
+    /// </summary>
+    /// <param name="renderContext">The rendering context.</param>
+    /// <param name="listType">The collected draw calls list type.</param>
+    /// <param name="material">The material whose draw calls to execute. Null executes them all, as ExecuteDrawCalls does.</param>
+    /// <param name="input">The input scene color. It's optional and used in forward/postFx rendering.</param>
+    API_FUNCTION() void ExecuteMaterialDrawCalls(API_PARAM(Ref) const RenderContext& renderContext, DrawCallsListType listType, MaterialBase* material, GPUTextureView* input = nullptr);
 
     /// <summary>
     /// Executes the collected draw calls.
