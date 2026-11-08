@@ -197,6 +197,8 @@ struct MultiBlendAnimData
     static void AfterSample(List& newList, const AnimSampleData& sample)
     {
         CHECK(newList.Count() < AnimGraphInstanceData::MultiBlendBucket::MaxCount);
+        if (newList.Count() >= AnimGraphInstanceData::MultiBlendBucket::MaxCount)
+            return;
 
         // Save animation position for the next frame
         newList.Add({ sample.TimePos, sample.MultiBlendIndex });
@@ -1774,6 +1776,7 @@ void AnimGraphExecutor::ProcessGroupAnimation(Box* boxBase, Node* nodeBase, Valu
         // Find 3 animations to blend (triangle)
         Float2 p(x, y);
         bool hasBest = false;
+        bool sampled = false;
         Float2 bestPoint;
         float bestWeight = 0.0f;
         byte bestAnims[2];
@@ -1806,6 +1809,7 @@ void AnimGraphExecutor::ProcessGroupAnimation(Box* boxBase, Node* nodeBase, Valu
                     MultiBlendAnimData::BeforeSample(context, bucket, prevList, a, inputs.Speed);
                     value = SampleAnimation(node, inputs.Loop, inputs.StartTime, a);
                     MultiBlendAnimData::AfterSample(newList, a);
+                    sampled = true;
                     break;
                 }
                 if (Float2::DistanceSquared(p, points[1]) < ANIM_GRAPH_BLEND_THRESHOLD2)
@@ -1814,6 +1818,7 @@ void AnimGraphExecutor::ProcessGroupAnimation(Box* boxBase, Node* nodeBase, Valu
                     MultiBlendAnimData::BeforeSample(context, bucket, prevList, b, inputs.Speed);
                     value = SampleAnimation(node, inputs.Loop, inputs.StartTime, b);
                     MultiBlendAnimData::AfterSample(newList, b);
+                    sampled = true;
                     break;
                 }
                 if (Float2::DistanceSquared(p, points[2]) < ANIM_GRAPH_BLEND_THRESHOLD2)
@@ -1822,6 +1827,7 @@ void AnimGraphExecutor::ProcessGroupAnimation(Box* boxBase, Node* nodeBase, Valu
                     MultiBlendAnimData::BeforeSample(context, bucket, prevList, c, inputs.Speed);
                     value = SampleAnimation(node, inputs.Loop, inputs.StartTime, c);
                     MultiBlendAnimData::AfterSample(newList, c);
+                    sampled = true;
                     break;
                 }
 
@@ -1892,6 +1898,7 @@ void AnimGraphExecutor::ProcessGroupAnimation(Box* boxBase, Node* nodeBase, Valu
                         value = SampleAnimation(node, inputs.Loop, inputs.StartTime, a);
                         MultiBlendAnimData::AfterSample(newList, a);
                     }
+                    sampled = true;
                     break;
                 }
                 const float v = (d11 * d20 - d01 * d21) / coeff;
@@ -1906,6 +1913,7 @@ void AnimGraphExecutor::ProcessGroupAnimation(Box* boxBase, Node* nodeBase, Valu
                 MultiBlendAnimData::AfterSample(newList, a);
                 MultiBlendAnimData::AfterSample(newList, b);
                 MultiBlendAnimData::AfterSample(newList, c);
+                sampled = true;
                 break;
             }
 
@@ -1933,8 +1941,9 @@ void AnimGraphExecutor::ProcessGroupAnimation(Box* boxBase, Node* nodeBase, Valu
             }
         }
 
-        // Check if use the closest sample
-        if ((void*)value == nullptr && hasBest)
+        // Check if use the closest sample (only when no triangle was sampled: a triangle whose sample gave no pose, eg. an
+        // animation not loaded yet, has already used up the bucket's samples)
+        if (!sampled && hasBest)
         {
             const auto best0Index = bestAnims[0];
             const auto best1Index = bestAnims[1];
