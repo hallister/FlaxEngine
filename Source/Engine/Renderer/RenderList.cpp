@@ -725,6 +725,10 @@ void RenderList::AddDrawCall(const RenderContext& renderContext, DrawPass drawMo
     {
         DrawCallsLists[(int32)DrawCallsListType::Distortion].Indices.Add(index);
     }
+    if ((drawModes & DrawPass::Custom) != DrawPass::None)
+    {
+        DrawCallsLists[(int32)DrawCallsListType::Custom].Indices.Add(index);
+    }
     if ((drawModes & DrawPass::MotionVectors) != DrawPass::None &&
         (staticFlags & StaticFlags::Transform) == StaticFlags::None &&
         RenderTools::ComputeBoundsScreenRadiusSquared(drawCall.ObjectPosition, drawCall.ObjectRadius, renderContext.View) > Math::Square(Graphics::MotionVectors::MinObjectScreenSize))
@@ -773,6 +777,10 @@ void RenderList::AddDrawCall(const RenderContextBatch& renderContextBatch, DrawP
         if ((drawModes & DrawPass::Distortion) != DrawPass::None)
         {
             DrawCallsLists[(int32)DrawCallsListType::Distortion].Indices.Add(index);
+        }
+        if ((drawModes & DrawPass::Custom) != DrawPass::None)
+        {
+            DrawCallsLists[(int32)DrawCallsListType::Custom].Indices.Add(index);
         }
         if ((drawModes & DrawPass::MotionVectors) != DrawPass::None && 
             (staticFlags & StaticFlags::Transform) == StaticFlags::None &&
@@ -953,7 +961,7 @@ void RenderList::SortDrawCalls(const RenderContext& renderContext, bool reverseD
 FORCE_INLINE bool CanUseInstancing(DrawPass pass)
 {
     // Forward instances only the pre-batched draw calls of order-independent materials (IMaterial::IsForwardOrderIndependent); its sorted draw calls aren't batched as no forward material allows instancing there
-    return pass == DrawPass::GBuffer || pass == DrawPass::Depth || pass == DrawPass::MotionVectors || pass == DrawPass::Forward;
+    return pass == DrawPass::GBuffer || pass == DrawPass::Depth || pass == DrawPass::MotionVectors || pass == DrawPass::Forward || pass == DrawPass::Custom;
 }
 
 FORCE_INLINE bool DrawsEqual(const DrawCall* a, const DrawCall* b)
