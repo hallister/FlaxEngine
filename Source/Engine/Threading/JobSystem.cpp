@@ -291,7 +291,7 @@ void JobSystem::Execute(const Function<void(int32)>& job, int32 jobCount)
 #if JOB_SYSTEM_ENABLED
 
 // Waits until the context (picked by label modulo the ring size) is done with the job it last held. The in-flight count
-// alone doesn't guarantee that: a long-running job can keep its context while 255 later ones come and go, and reusing it
+// alone doesn't guarantee that: a long-running job can keep its context while JobContextsSize - 1 (1023) later ones come and go, and reusing it
 // then would make Wait() on the old label return while its jobs still run (on the waiting caller's freed stack).
 FORCE_INLINE void WaitForContextFree(JobContext& context)
 {
