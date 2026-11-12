@@ -187,6 +187,7 @@ public:
     /// <summary>
     /// Sets the mass value measured in kilograms (use override value only if OverrideMass is checked).
     /// </summary>
+    /// <remarks>When the mass is already overridden this scales the current inertia without reading the colliders, and leaves the center of mass where it is. Call <see cref="UpdateMass"/> to pick up colliders resized or moved in place.</remarks>
     API_PROPERTY() void SetMass(float value);
 
     /// <summary>
@@ -291,6 +292,11 @@ public:
     /// Gets the center of the mass in the local space.
     /// </summary>
     API_PROPERTY() Vector3 GetCenterOfMass() const;
+
+    /// <summary>
+    /// Gets the diagonal of the inertia tensor in the mass space (the axes of the center of mass frame).
+    /// </summary>
+    API_PROPERTY() Float3 GetMassSpaceInertiaTensor() const;
 
     /// <summary>
     /// Determines whether this rigidbody is sleeping.
@@ -470,6 +476,11 @@ public:
     /// Updates the rigidbody scale dependent properties like mass (may be modified when actor transformation changes).
     /// </summary>
     void UpdateScale();
+
+    /// <summary>
+    /// Applies a changed mass or mass scale. With rescale set, scales the current mass properties instead of recomputing them from the colliders.
+    /// </summary>
+    void OnMassChanged(bool rescale);
 
     template<typename ColliderType = Collider, typename AllocationType = HeapAllocation>
     void GetColliders(Array<ColliderType*, AllocationType>& result) const
