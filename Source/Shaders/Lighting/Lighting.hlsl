@@ -68,6 +68,7 @@ LightSample FoliageShading(GBufferSample gBuffer, float energy, float3 L, float3
     float3 subsurfaceColor = gBuffer.CustomData.rgb;
     float wrapNoL = saturate((-dot(N, L) + 0.5f) / 2.25);
     float VoL = dot(V, L);
+    // 0.6 is GGX alpha (a2 = 0.36): a broad forward-scatter lobe rather than a narrow hotspot toward the light
     float scatter = D_GGX(0.6f, saturate(-VoL));
     lighting.Transmission = subsurfaceColor * (wrapNoL * scatter);
 #endif
