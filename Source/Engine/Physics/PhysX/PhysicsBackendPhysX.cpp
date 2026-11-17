@@ -1869,6 +1869,7 @@ void* PhysicsBackend::CreateScene(const PhysicsSettings& settings)
 
     // Init characters controller
     scenePhysX->ControllerManager = PxCreateControllerManager(*scenePhysX->Scene);
+    scenePhysX->Scene->userData = scenePhysX;
 
 #undef CHECK_INIT
     return scenePhysX;
@@ -2694,11 +2695,36 @@ void* PhysicsBackend::CreateShape(PhysicsColliderActor* collider, const Collisio
     return shapePhysX;
 }
 
+namespace
+{
+    // Character controllers cache the geometry around them and only notice changes to static actors themselves, so a
+    // shape attached to, detached from, moved on, reshaped on, or switched on or off on a rigid body has to flush their
+    // caches, or they keep colliding with what was there (eg. a door's collider disabled while a character leans on it)
+    void InvalidateControllersCache(const PxRigidActor* actor)
+    {
+        if (!actor || actor->getConcreteType() == PxConcreteType::eRIGID_STATIC)
+            return;
+        PxScene* scene = actor->getScene();
+        auto scenePhysX = scene ? (ScenePhysX*)scene->userData : nullptr;
+        if (!scenePhysX || !scenePhysX->ControllerManager)
+            return;
+        const PxU32 count = scenePhysX->ControllerManager->getNbControllers();
+        for (PxU32 i = 0; i < count; i++)
+            scenePhysX->ControllerManager->getController(i)->invalidateCache();
+    }
+
+    void InvalidateControllersCache(const PxShape* shape)
+    {
+        InvalidateControllersCache(shape->getActor());
+    }
+}
+
 void PhysicsBackend::SetShapeState(void* shape, bool enabled, bool trigger)
 {
     auto shapePhysX = (PxShape*)shape;
     const PxShapeFlags shapeFlags = GetShapeFlags(trigger, enabled);
     shapePhysX->setFlags(shapeFlags);
+    InvalidateControllersCache(shapePhysX);
 }
 
 void PhysicsBackend::SetShapeFilterMask(void* shape, uint32 mask0, uint32 mask1)
@@ -2709,6 +2735,7 @@ void PhysicsBackend::SetShapeFilterMask(void* shape, uint32 mask0, uint32 mask1)
     filterData.word1 = mask1;
     shapePhysX->setSimulationFilterData(filterData);
     shapePhysX->setQueryFilterData(filterData);
+    InvalidateControllersCache(shapePhysX);
 }
 
 void* PhysicsBackend::GetShapeActor(void* shape)
@@ -2768,6 +2795,7 @@ void PhysicsBackend::SetShapeLocalPose(void* shape, const Vector3& position, con
 {
     auto shapePhysX = (PxShape*)shape;
     shapePhysX->setLocalPose(PxTransform(C2P(position), C2P(orientation)));
+    InvalidateControllersCache(shapePhysX);
 }
 
 void PhysicsBackend::SetShapeContactOffset(void* shape, float value)
@@ -2790,6 +2818,7 @@ void PhysicsBackend::SetShapeGeometry(void* shape, const CollisionShape& geometr
     PxGeometryHolder geometryPhysX;
     GetShapeGeometry(geometry, geometryPhysX);
     shapePhysX->setGeometry(geometryPhysX.any());
+    InvalidateControllersCache(shapePhysX);
 }
 
 void PhysicsBackend::AttachShape(void* shape, void* actor)
@@ -2797,6 +2826,7 @@ void PhysicsBackend::AttachShape(void* shape, void* actor)
     auto shapePhysX = (PxShape*)shape;
     auto actorPhysX = (PxRigidActor*)actor;
     actorPhysX->attachShape(*shapePhysX);
+    InvalidateControllersCache(actorPhysX);
 }
 
 void PhysicsBackend::DetachShape(void* shape, void* actor)
@@ -2804,6 +2834,7 @@ void PhysicsBackend::DetachShape(void* shape, void* actor)
     auto shapePhysX = (PxShape*)shape;
     auto actorPhysX = (PxRigidActor*)actor;
     actorPhysX->detachShape(*shapePhysX);
+    InvalidateControllersCache(actorPhysX);
 }
 
 bool PhysicsBackend::ComputeShapesPenetration(void* shapeA, void* shapeB, const Vector3& positionA, const Quaternion& orientationA, const Vector3& positionB, const Quaternion& orientationB, Vector3& direction, float& distance)
