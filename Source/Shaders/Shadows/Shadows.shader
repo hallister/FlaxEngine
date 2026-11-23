@@ -43,6 +43,10 @@ float RayCastScreenSpaceShadow(GBufferData gBufferData, GBufferSample gBuffer, f
     // Build start and end points of the trace
     float distanceFade = 1 - saturate(pow(length(gBuffer.WorldPos - gBufferData.ViewPos) / ContactShadowsDistance, 2));
     float maxShadowLength = gBufferData.InvProjectionMatrix[1][1] * gBuffer.ViewPos.z * rayLength * distanceFade;
+
+    // Start the trace a little off the surface, along its normal, by about the size of a pixel there, so the ray doesn't hit the surface it starts on (on surfaces the light skims, the depth buffer's precision and the per-frame dither made it hit and miss from frame to frame)
+    float pixelWorldSize = 2.0f * gBufferData.InvProjectionMatrix[1][1] * gBuffer.ViewPos.z / (float)depthSize.y;
+    rayStartWS += gBuffer.Normal * (pixelWorldSize * 1.5f);
     float4 rayStartCS = PROJECT_POINT(float4(rayStartWS, 1), ViewProjectionMatrix);
     float4 rayDirCS = PROJECT_POINT(float4(rayDirWS * maxShadowLength, 0), ViewProjectionMatrix);
     float4 rayEndCS = rayStartCS + rayDirCS;
@@ -65,7 +69,7 @@ float RayCastScreenSpaceShadow(GBufferData gBufferData, GBufferSample gBuffer, f
         float sceneDepth = SampleDepth(gBufferData, rayUV) * gBufferData.ViewFar;
         float rayDepth = LinearizeZ(gBufferData, ray.z) * gBufferData.ViewFar * 0.998;
         float surfaceThickness = 0.035f + rayDepth * rayLength;
-        float depthTestHardness = 0.005f;
+        float depthTestHardness = max(0.005f, pixelWorldSize); // Soften the depth test with distance, as the depth buffer gets less precise there
         float lightAmount = saturate((rayDepth - sceneDepth) / depthTestHardness) * saturate((sceneDepth + surfaceThickness - rayDepth) / depthTestHardness);
         lightAmountMax = max(lightAmountMax, lightAmount);
         ray += rayStep;

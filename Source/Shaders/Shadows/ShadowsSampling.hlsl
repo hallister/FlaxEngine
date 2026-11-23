@@ -12,6 +12,18 @@
 #ifndef SHADOWS_PCSS
 #define SHADOWS_PCSS (SHADOWS_QUALITY >= 3)
 #endif
+#ifndef SHADOWS_PCSS_MIN_RADIUS
+// The smallest PCSS filter radius (in shadow map texels), kept near blockers so contact edges don't come out pixel-hard and stair-stepped
+#define SHADOWS_PCSS_MIN_RADIUS 1.5f
+#endif
+#ifndef SHADOWS_CSM_SLOPE_BIAS
+// Directional light slope-scaled depth bias (in shadow map texels per unit of the surface's slope to the light, tan(angle)), applied on top of the light's depth bias
+#define SHADOWS_CSM_SLOPE_BIAS 1.0f
+#endif
+#ifndef SHADOWS_CSM_SLOPE_BIAS_MAX
+// The largest slope the slope-scaled depth bias follows (tan(angle)), so surfaces nearly edge-on to the light don't get a huge bias
+#define SHADOWS_CSM_SLOPE_BIAS_MAX 4.0f
+#endif
 
 #include "./Flax/Shadows/ShadowsCommon.hlsl"
 #include "./Flax/GBufferCommon.hlsl"
@@ -302,7 +314,7 @@ float SampleShadowMapPCSS(Texture2D<float> shadowMap, float2 shadowMapUV, float 
     float2 shadowMapSize;
     shadowMap.GetDimensions(shadowMapSize.x, shadowMapSize.y);
     float resolution = shadowMapSize.x * shadowToAtlas.x;
-    float minRadius = 0.3f / resolution;
+    float minRadius = SHADOWS_PCSS_MIN_RADIUS / resolution;
     float2 uvMin = shadowToAtlas.zw;
     float2 uvMax = shadowToAtlas.xy + shadowToAtlas.zw;
 
@@ -374,10 +386,29 @@ float SampleShadowMapPCSS(Texture2D<float> shadowMap, float2 shadowMapUV, float 
 #endif
 
 // Samples the shadow cascade for the given directional light on the material surface (supports subsurface shadowing)
-ShadowSample SampleDirectionalLightShadowCascade(LightData light, Buffer<float4> shadowsBuffer, Texture2D<float> shadowMap, GBufferSample gBuffer, ShadowData shadow, float3 samplePosition, uint cascadeIndex)
+ShadowSample SampleDirectionalLightShadowCascade(LightData light, Buffer<float4> shadowsBuffer, Texture2D<float> shadowMap, GBufferSample gBuffer, ShadowData shadow, float3 samplePosition, float3 normalOffset, float NoL, uint cascadeIndex)
 {
     ShadowSample result;
     ShadowTileData shadowTile = LoadShadowsBufferTile(shadowsBuffer, light.ShadowsBufferAddress, cascadeIndex);
+
+    // Keep the biases the same size in world units in every cascade, as the first cascade has them: the depth bias is given in the cascade's depth range and the normal offset in the first cascade's texels, while further cascades cover more space with larger texels
+    // (otherwise the depth bias lifts shadows off their casters more in each further cascade, and the normal offset falls short of the larger texels' self-shadowing)
+    BRANCH
+    if (cascadeIndex != 0)
+    {
+        ShadowTileData firstTile = LoadShadowsBufferTile(shadowsBuffer, light.ShadowsBufferAddress, 0);
+        float cascadeScale = GetShadowTileUnitsScale(shadowTile) / GetShadowTileUnitsScale(firstTile);
+        shadow.Bias *= cascadeScale;
+        normalOffset /= cascadeScale;
+    }
+    samplePosition += normalOffset;
+
+    // Slope-scaled depth bias: surfaces at a steep angle to the light cross more depth within one texel, so they need more bias to not shadow themselves (in the cascade's depth range one texel is 1 / resolution in every cascade)
+    float2 shadowMapSize;
+    shadowMap.GetDimensions(shadowMapSize.x, shadowMapSize.y);
+    float tileResolution = shadowMapSize.x * shadowTile.ShadowToAtlas.x;
+    float slope = sqrt(saturate(1.0f - NoL * NoL)) / max(NoL, 0.0001f);
+    shadow.Bias += SHADOWS_CSM_SLOPE_BIAS * min(slope, SHADOWS_CSM_SLOPE_BIAS_MAX) / tileResolution;
 
     // Project position into shadow atlas UV
     float4 shadowPosition;
@@ -469,17 +500,20 @@ ShadowSample SampleDirectionalLightShadow(LightData light, Buffer<float4> shadow
 
     // Sample cascade
     float3 samplePosition = gBuffer.WorldPos;
+    float3 normalOffset = float3(0, 0, 0);
 #if !LIGHTING_NO_DIRECTIONAL
-    // Apply normal offset bias
-    samplePosition += GetShadowPositionOffset(shadow.NormalOffsetScale, NoL, gBuffer.Normal);
+    // Normal offset bias (scaled per cascade)
+    normalOffset = GetShadowPositionOffset(shadow.NormalOffsetScale, NoL, gBuffer.Normal);
+#else
+    float NoL = 1.0f;
 #endif
-    result = SampleDirectionalLightShadowCascade(light, shadowsBuffer, shadowMap, gBuffer, shadow, samplePosition, cascadeIndex);
+    result = SampleDirectionalLightShadowCascade(light, shadowsBuffer, shadowMap, gBuffer, shadow, samplePosition, normalOffset, NoL, cascadeIndex);
 
 #if SHADOWS_CSM_BLENDING
     if (splitDist <= shadow.CascadeBlendSize && cascadeIndex != shadow.TilesCount - 1)
     {
 	    // Sample the next cascade, and blend between the two results to smooth the transition
-        ShadowSample nextResult = SampleDirectionalLightShadowCascade(light, shadowsBuffer, shadowMap, gBuffer, shadow, samplePosition, cascadeIndex + 1);
+        ShadowSample nextResult = SampleDirectionalLightShadowCascade(light, shadowsBuffer, shadowMap, gBuffer, shadow, samplePosition, normalOffset, NoL, cascadeIndex + 1);
 		float blendAmount = splitDist / shadow.CascadeBlendSize;
 		result.SurfaceShadow = lerp(nextResult.SurfaceShadow, result.SurfaceShadow, blendAmount);
 		result.TransmissionShadow = lerp(nextResult.TransmissionShadow, result.TransmissionShadow, blendAmount);

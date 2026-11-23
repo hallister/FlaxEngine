@@ -66,6 +66,12 @@ ShadowTileData LoadShadowsBufferTile(Buffer<float4> shadowsBuffer, uint shadowsB
     return tile;
 }
 
+// Gets the shadow tile projection scale (shadow UV units per world unit along the tile's U axis), which is inversely proportional to the size of the tile's texels in world units
+float GetShadowTileUnitsScale(ShadowTileData tile)
+{
+    return length(float3(tile.WorldToShadow[0].x, tile.WorldToShadow[1].x, tile.WorldToShadow[2].x));
+}
+
 float3 GetShadowPositionOffset(float offsetScale, float NoL, float3 normal)
 {
     float normalOffsetScale = saturate(1.0f - NoL);
