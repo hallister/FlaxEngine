@@ -18,11 +18,11 @@
 #endif
 #ifndef SHADOWS_CSM_SLOPE_BIAS
 // Directional light slope-scaled depth bias (in shadow map texels per unit of the surface's slope to the light, tan(angle)), applied on top of the light's depth bias
-#define SHADOWS_CSM_SLOPE_BIAS 1.0f
+#define SHADOWS_CSM_SLOPE_BIAS 0.5f
 #endif
 #ifndef SHADOWS_CSM_SLOPE_BIAS_MAX
 // The largest slope the slope-scaled depth bias follows (tan(angle)), so surfaces nearly edge-on to the light don't get a huge bias
-#define SHADOWS_CSM_SLOPE_BIAS_MAX 4.0f
+#define SHADOWS_CSM_SLOPE_BIAS_MAX 2.0f
 #endif
 
 #include "./Flax/Shadows/ShadowsCommon.hlsl"
@@ -308,13 +308,13 @@ float2 SampleShadowPCSSRotate(float2 pos, float2 rotation)
 }
 
 // [Percentage-Closer Soft Shadows, Randima Fernando, NVIDIA]
-float SampleShadowMapPCSS(Texture2D<float> shadowMap, float2 shadowMapUV, float sceneDepth, float4 shadowToAtlas, float sourceAngle)
+float SampleShadowMapPCSS(Texture2D<float> shadowMap, float2 shadowMapUV, float sceneDepth, float4 shadowToAtlas, float sourceAngle, float minRadiusTexels = SHADOWS_PCSS_MIN_RADIUS)
 {
     // Scale samples to shadow map tile
     float2 shadowMapSize;
     shadowMap.GetDimensions(shadowMapSize.x, shadowMapSize.y);
     float resolution = shadowMapSize.x * shadowToAtlas.x;
-    float minRadius = SHADOWS_PCSS_MIN_RADIUS / resolution;
+    float minRadius = minRadiusTexels / resolution;
     float2 uvMin = shadowToAtlas.zw;
     float2 uvMax = shadowToAtlas.xy + shadowToAtlas.zw;
 
@@ -393,11 +393,12 @@ ShadowSample SampleDirectionalLightShadowCascade(LightData light, Buffer<float4>
 
     // Keep the biases the same size in world units in every cascade, as the first cascade has them: the depth bias is given in the cascade's depth range and the normal offset in the first cascade's texels, while further cascades cover more space with larger texels
     // (otherwise the depth bias lifts shadows off their casters more in each further cascade, and the normal offset falls short of the larger texels' self-shadowing)
+    float cascadeScale = 1.0f;
     BRANCH
     if (cascadeIndex != 0)
     {
         ShadowTileData firstTile = LoadShadowsBufferTile(shadowsBuffer, light.ShadowsBufferAddress, 0);
-        float cascadeScale = GetShadowTileUnitsScale(shadowTile) / GetShadowTileUnitsScale(firstTile);
+        cascadeScale = GetShadowTileUnitsScale(shadowTile) / GetShadowTileUnitsScale(firstTile);
         shadow.Bias *= cascadeScale;
         normalOffset /= cascadeScale;
     }
@@ -417,7 +418,9 @@ ShadowSample SampleDirectionalLightShadowCascade(LightData light, Buffer<float4>
     // Sample shadow map
 #if SHADOWS_PCSS
     float sourceAngle = light.SourceRadius; // tan(SourceAngle * DegreesToRadians * 0.5);
-    result.SurfaceShadow = SampleShadowMapPCSS(shadowMap, shadowMapUV, shadowPosition.z, shadowTile.ShadowToAtlas, sourceAngle);
+    // Keep the smallest blur the same size in world units as the first cascade's (further cascades' texels are larger, so the same count of texels blurred them more), but never under half a texel
+    float minRadiusTexels = max(SHADOWS_PCSS_MIN_RADIUS * cascadeScale, 0.5f);
+    result.SurfaceShadow = SampleShadowMapPCSS(shadowMap, shadowMapUV, shadowPosition.z, shadowTile.ShadowToAtlas, sourceAngle, minRadiusTexels);
 #else
     result.SurfaceShadow = SampleShadowMapOptimizedPCF(shadowMap, shadowMapUV, shadowPosition.z);
 #endif
