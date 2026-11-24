@@ -120,6 +120,7 @@ void SimulationEventCallback::onContact(const PxContactPairHeader& pairHeader, c
 
     Collision c;
     PxContactPairExtraDataIterator j(pairHeader.extraDataStream, pairHeader.extraDataStreamSize);
+    bool hasExtraData = j.nextItemSet();
 
     // Extract collision pairs
     for (PxU32 pairIndex = 0; pairIndex < nbPairs; pairIndex++)
@@ -171,14 +172,17 @@ void SimulationEventCallback::onContact(const PxContactPairHeader& pairHeader, c
 
         // Extract velocities
         c.ThisVelocity = c.OtherVelocity = Vector3::Zero;
-        if (hasPostVelocities && j.nextItemSet())
+        if (hasExtraData)
         {
-            ASSERT_LOW_LAYER(j.contactPairIndex == pairIndex);
-            if (j.postSolverVelocity)
-            {
-                c.ThisVelocity = P2C(j.postSolverVelocity->linearVelocity[0]);
-                c.OtherVelocity = P2C(j.postSolverVelocity->linearVelocity[1]);
-            }
+            // An item set holds the actor pair's data from the pair it names onwards, so use the last one that starts at or before this pair (skipped pairs don't shift it)
+            PxContactPairExtraDataIterator next = j;
+            while (next.nextItemSet() && next.contactPairIndex <= pairIndex)
+                j = next;
+        }
+        if (hasPostVelocities && hasExtraData && j.contactPairIndex <= pairIndex && j.postSolverVelocity)
+        {
+            c.ThisVelocity = P2C(j.postSolverVelocity->linearVelocity[0]);
+            c.OtherVelocity = P2C(j.postSolverVelocity->linearVelocity[1]);
         }
 
         if (pair.flags & PxContactPairFlag::eACTOR_PAIR_HAS_FIRST_TOUCH)
@@ -190,7 +194,6 @@ void SimulationEventCallback::onContact(const PxContactPairHeader& pairHeader, c
             RemovedCollisions.Add(c);
         }
     }
-    //ASSERT(!j.nextItemSet());
 }
 
 void SimulationEventCallback::onTrigger(PxTriggerPair* pairs, PxU32 count)
