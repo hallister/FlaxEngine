@@ -5963,7 +5963,7 @@ extern "C" {
             /* Windows reports an ICMP port-unreachable for a datagram sent to a peer whose process is gone (a crashed
                or killed client) as WSAECONNRESET on a later receive, one per datagram. A host that kept sending to that
                peer until it timed out has a long queue of them, and each one ended a receive pass, so new peers'
-               connects waited behind them for longer than those peers wait (#2212). An unconnected UDP socket has no
+               connects waited behind them for longer than those peers wait (Starwright#2212). An unconnected UDP socket has no
                connection to reset: turn the reports off. */
             #ifndef SIO_UDP_CONNRESET
             #define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
@@ -6137,7 +6137,7 @@ extern "C" {
                     return 0;
 
                 /* A reset that still gets through says nothing about the datagrams behind it: skip it and keep
-                   reading (-2), rather than ending the pass as if the socket were empty (#2212) */
+                   reading (-2), rather than ending the pass as if the socket were empty (Starwright#2212) */
                 case WSAECONNRESET:
                     return -2;
             }
