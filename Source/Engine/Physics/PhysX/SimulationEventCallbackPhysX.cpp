@@ -120,14 +120,17 @@ void SimulationEventCallback::onContact(const PxContactPairHeader& pairHeader, c
 
     Collision c;
     PxContactPairExtraDataIterator j(pairHeader.extraDataStream, pairHeader.extraDataStreamSize);
+    bool hasExtraData = j.nextItemSet();
 
     // Extract collision pairs
     for (PxU32 pairIndex = 0; pairIndex < nbPairs; pairIndex++)
     {
         const PxContactPair& pair = pairs[pairIndex];
-        PxContactStreamIterator i(pair.contactPatches, pair.contactPoints, pair.getInternalFaceIndices(), pair.patchCount, pair.contactCount);
 
-        const PxReal* impulses = pair.contactImpulses;
+        // Skip pairs with a removed shape: its pointer may reference a deleted shape that must not be dereferenced
+        if (pair.flags & (PxContactPairFlag::eREMOVED_SHAPE_0 | PxContactPairFlag::eREMOVED_SHAPE_1))
+            continue;
+
         //const PxU32 flippedContacts = (pair.flags & PxContactPairFlag::eINTERNAL_CONTACTS_ARE_FLIPPED);
         const bool hasImpulses = pair.flags.isSet(PxContactPairFlag::eINTERNAL_HAS_IMPULSES);
         const bool hasPostVelocities = !pair.flags.isSet(PxContactPairFlag::eACTOR_PAIR_LOST_TOUCH);
@@ -141,37 +144,45 @@ void SimulationEventCallback::onContact(const PxContactPairHeader& pairHeader, c
             continue;
         }
 
-        // Extract contact points
+        // Extract contact points (the contact stream is only valid when the pair has contacts, eg. not on lost touch)
         c.ContactsCount = 0;
-        while (i.hasNextPatch())
+        if (pair.contactCount != 0)
         {
-            i.nextPatch();
-            while (i.hasNextContact() && c.ContactsCount < COLLISION_NAX_CONTACT_POINTS)
+            PxContactStreamIterator i(pair.contactPatches, pair.contactPoints, pair.getInternalFaceIndices(), pair.patchCount, pair.contactCount);
+            const PxReal* impulses = pair.contactImpulses;
+            while (i.hasNextPatch())
             {
-                i.nextContact();
-                const PxVec3 point = i.getContactPoint();
-                const PxVec3 normal = i.getContactNormal();
-                if (hasImpulses)
-                    totalImpulse += normal * impulses[c.ContactsCount];
+                i.nextPatch();
+                while (i.hasNextContact() && c.ContactsCount < COLLISION_NAX_CONTACT_POINTS)
+                {
+                    i.nextContact();
+                    const PxVec3 point = i.getContactPoint();
+                    const PxVec3 normal = i.getContactNormal();
+                    if (hasImpulses)
+                        totalImpulse += normal * impulses[c.ContactsCount];
 
-                ContactPoint& contact = c.Contacts[c.ContactsCount++];
-                contact.Point = P2C(point);
-                contact.Normal = P2C(normal);
-                contact.Separation = i.getSeparation();
+                    ContactPoint& contact = c.Contacts[c.ContactsCount++];
+                    contact.Point = P2C(point);
+                    contact.Normal = P2C(normal);
+                    contact.Separation = i.getSeparation();
+                }
             }
         }
         c.Impulse = P2C(totalImpulse);
 
         // Extract velocities
         c.ThisVelocity = c.OtherVelocity = Vector3::Zero;
-        if (hasPostVelocities && j.nextItemSet())
+        if (hasExtraData)
         {
-            ASSERT_LOW_LAYER(j.contactPairIndex == pairIndex);
-            if (j.postSolverVelocity)
-            {
-                c.ThisVelocity = P2C(j.postSolverVelocity->linearVelocity[0]);
-                c.OtherVelocity = P2C(j.postSolverVelocity->linearVelocity[1]);
-            }
+            // An item set holds the actor pair's data from the pair it names onwards, so use the last one that starts at or before this pair (skipped pairs don't shift it)
+            PxContactPairExtraDataIterator next = j;
+            while (next.nextItemSet() && next.contactPairIndex <= pairIndex)
+                j = next;
+        }
+        if (hasPostVelocities && hasExtraData && j.contactPairIndex <= pairIndex && j.postSolverVelocity)
+        {
+            c.ThisVelocity = P2C(j.postSolverVelocity->linearVelocity[0]);
+            c.OtherVelocity = P2C(j.postSolverVelocity->linearVelocity[1]);
         }
 
         if (pair.flags & PxContactPairFlag::eACTOR_PAIR_HAS_FIRST_TOUCH)
@@ -183,7 +194,6 @@ void SimulationEventCallback::onContact(const PxContactPairHeader& pairHeader, c
             RemovedCollisions.Add(c);
         }
     }
-    //ASSERT(!j.nextItemSet());
 }
 
 void SimulationEventCallback::onTrigger(PxTriggerPair* pairs, PxU32 count)
