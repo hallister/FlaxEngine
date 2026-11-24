@@ -125,9 +125,11 @@ void SimulationEventCallback::onContact(const PxContactPairHeader& pairHeader, c
     for (PxU32 pairIndex = 0; pairIndex < nbPairs; pairIndex++)
     {
         const PxContactPair& pair = pairs[pairIndex];
-        PxContactStreamIterator i(pair.contactPatches, pair.contactPoints, pair.getInternalFaceIndices(), pair.patchCount, pair.contactCount);
 
-        const PxReal* impulses = pair.contactImpulses;
+        // Skip pairs with a removed shape: its pointer may reference a deleted shape that must not be dereferenced
+        if (pair.flags & (PxContactPairFlag::eREMOVED_SHAPE_0 | PxContactPairFlag::eREMOVED_SHAPE_1))
+            continue;
+
         //const PxU32 flippedContacts = (pair.flags & PxContactPairFlag::eINTERNAL_CONTACTS_ARE_FLIPPED);
         const bool hasImpulses = pair.flags.isSet(PxContactPairFlag::eINTERNAL_HAS_IMPULSES);
         const bool hasPostVelocities = !pair.flags.isSet(PxContactPairFlag::eACTOR_PAIR_LOST_TOUCH);
@@ -141,23 +143,28 @@ void SimulationEventCallback::onContact(const PxContactPairHeader& pairHeader, c
             continue;
         }
 
-        // Extract contact points
+        // Extract contact points (the contact stream is only valid when the pair has contacts, eg. not on lost touch)
         c.ContactsCount = 0;
-        while (i.hasNextPatch())
+        if (pair.contactCount != 0)
         {
-            i.nextPatch();
-            while (i.hasNextContact() && c.ContactsCount < COLLISION_NAX_CONTACT_POINTS)
+            PxContactStreamIterator i(pair.contactPatches, pair.contactPoints, pair.getInternalFaceIndices(), pair.patchCount, pair.contactCount);
+            const PxReal* impulses = pair.contactImpulses;
+            while (i.hasNextPatch())
             {
-                i.nextContact();
-                const PxVec3 point = i.getContactPoint();
-                const PxVec3 normal = i.getContactNormal();
-                if (hasImpulses)
-                    totalImpulse += normal * impulses[c.ContactsCount];
+                i.nextPatch();
+                while (i.hasNextContact() && c.ContactsCount < COLLISION_NAX_CONTACT_POINTS)
+                {
+                    i.nextContact();
+                    const PxVec3 point = i.getContactPoint();
+                    const PxVec3 normal = i.getContactNormal();
+                    if (hasImpulses)
+                        totalImpulse += normal * impulses[c.ContactsCount];
 
-                ContactPoint& contact = c.Contacts[c.ContactsCount++];
-                contact.Point = P2C(point);
-                contact.Normal = P2C(normal);
-                contact.Separation = i.getSeparation();
+                    ContactPoint& contact = c.Contacts[c.ContactsCount++];
+                    contact.Point = P2C(point);
+                    contact.Normal = P2C(normal);
+                    contact.Separation = i.getSeparation();
+                }
             }
         }
         c.Impulse = P2C(totalImpulse);
