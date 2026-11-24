@@ -23,6 +23,7 @@
 #define SHADOWS_USE_CACHE 1
 #define SHADOWS_POSITION_ERROR METERS_TO_UNITS(0.1f)
 #define SHADOWS_ROTATION_ERROR 0.9999f
+#define SHADOWS_CSM_ANCHOR_DISTANCE METERS_TO_UNITS(8.0f) // How far the view can move from the directional light's texel-grid anchor before it's moved to the view
 #define SHADOWS_MAX_TILES 6
 #define SHADOWS_MIN_RESOLUTION 32
 #define SHADOWS_MAX_STATIC_ATLAS_CAPACITY_TO_DEFRAG 0.7f
@@ -199,6 +200,9 @@ struct ShadowAtlasLight
     BoundingSphere Bounds;
     float Sharpness, Fade, NormalOffsetScale, Bias, FadeDistance, Distance, TileBorder, CascadeBlendSize;
     Float4 CascadeSplits;
+    // World-space point the directional light's cascades round their texel grid to: kept near the view, so turning the light shifts the grid around the view by a tiny fraction of a texel (rounding to the world origin, which can be ~100 m away, moved it by whole texels each time the light turned and the stair-stepped edges reshuffled)
+    Vector3 GridAnchor;
+    bool HasGridAnchor;
     ShadowAtlasLightTile Tiles[SHADOWS_MAX_TILES];
     ShadowAtlasLightCache Cache;
 #if COMPILE_WITH_PROFILER
@@ -1113,6 +1117,14 @@ void ShadowsPass::SetupLight(ShadowsCustomBuffer& shadows, RenderContext& render
             Float3::TransformCoordinate(frustumCornersCs[i], invProjectionMatrix, frustumCornersVs[i]);
     }
 
+    // Keep the texel grid's anchor near the view (moved only when the view goes far from it, so the grid stays put while the view is still)
+    if (!atlasLight.HasGridAnchor || Vector3::DistanceSquared(atlasLight.GridAnchor, renderContext.View.WorldPosition) > Math::Square(SHADOWS_CSM_ANCHOR_DISTANCE))
+    {
+        atlasLight.GridAnchor = renderContext.View.WorldPosition;
+        atlasLight.HasGridAnchor = true;
+    }
+    const Float3 gridAnchor = (Float3)(atlasLight.GridAnchor - renderContext.View.Origin);
+
     // Create the different view and projection matrices for each split
     float splitMinRatio = 0;
     float splitMaxRatio = (minDistance - renderContext.View.Near) / viewRange;
@@ -1183,8 +1195,8 @@ void ShadowsPass::SetupLight(ShadowsCustomBuffer& shadows, RenderContext& render
         Matrix::OrthoOffCenter(minExtents.X, maxExtents.X, minExtents.Y, maxExtents.Y, 0.0f, cascadeExtents.Z, shadowProjection);
         Matrix::Multiply(shadowView, shadowProjection, shadowVP);
 
-        // Round the projection matrix by projecting the world-space origin and calculating the fractional offset in texel space of the shadow map
-        Float4 shadowOrigin = Float4(0.0f, 0.0f, 0.0f, 1.0f);
+        // Round the projection matrix by projecting the grid anchor and calculating the fractional offset in texel space of the shadow map
+        Float4 shadowOrigin = Float4(gridAnchor, 1.0f);
         shadowOrigin = Float4::Transform(shadowOrigin, shadowVP);
         shadowOrigin = shadowOrigin * (shadowMapsSize / 2.0f);
         Float4 roundedOrigin = Float4::Round(shadowOrigin);
