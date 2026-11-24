@@ -5957,7 +5957,23 @@ extern "C" {
     }
 
     ENetSocket enet_socket_create(ENetSocketType type) {
-        return socket(PF_INET6, type == ENET_SOCKET_TYPE_DATAGRAM ? SOCK_DGRAM : SOCK_STREAM, 0);
+        ENetSocket result = socket(PF_INET6, type == ENET_SOCKET_TYPE_DATAGRAM ? SOCK_DGRAM : SOCK_STREAM, 0);
+
+        if (result != INVALID_SOCKET && type == ENET_SOCKET_TYPE_DATAGRAM) {
+            /* Windows reports an ICMP port-unreachable for a datagram sent to a peer whose process is gone (a crashed
+               or killed client) as WSAECONNRESET on a later receive, one per datagram. A host that kept sending to that
+               peer until it timed out has a long queue of them, and each one ended a receive pass, so new peers'
+               connects waited behind them for longer than those peers wait. An unconnected UDP socket has no
+               connection to reset: turn the reports off. */
+            #ifndef SIO_UDP_CONNRESET
+            #define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
+            #endif
+            BOOL reportReset = FALSE;
+            DWORD returned = 0;
+            WSAIoctl(result, SIO_UDP_CONNRESET, &reportReset, sizeof(reportReset), NULL, 0, &returned, NULL, NULL);
+        }
+
+        return result;
     }
 
     int enet_socket_set_option(ENetSocket socket, ENetSocketOption option, int value) {
@@ -6118,8 +6134,12 @@ extern "C" {
         ) {
             switch (WSAGetLastError()) {
                 case WSAEWOULDBLOCK:
-                case WSAECONNRESET:
                     return 0;
+
+                /* A reset that still gets through says nothing about the datagrams behind it: skip it and keep
+                   reading (-2), rather than ending the pass as if the socket were empty */
+                case WSAECONNRESET:
+                    return -2;
             }
 
             return -1;
