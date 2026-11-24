@@ -200,7 +200,7 @@ struct ShadowAtlasLight
     BoundingSphere Bounds;
     float Sharpness, Fade, NormalOffsetScale, Bias, FadeDistance, Distance, TileBorder, CascadeBlendSize;
     Float4 CascadeSplits;
-    // World-space point the directional light's cascades round their texel grid to: kept near the view, so turning the light shifts the grid around the view by a tiny fraction of a texel (rounding to the world origin, which can be ~100 m away, moved it by whole texels each time the light turned and the stair-stepped edges reshuffled)
+    // World-space point the cascades round their texel grid to; kept within SHADOWS_CSM_ANCHOR_DISTANCE of the view so light turns barely shift the grid near it
     Vector3 GridAnchor;
     bool HasGridAnchor;
     ShadowAtlasLightTile Tiles[SHADOWS_MAX_TILES];
